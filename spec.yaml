@@ -1,0 +1,54 @@
+# Experiment spec. Edit to describe your grid; make_grid.py expands this
+# into one row of grid.tsv per (prompt × params × backend) cell.
+#
+# Each "cell" produces n_samples generations.
+
+# Which prompts to include. These must exist as files in prompts/ with
+# matching filenames (e.g. "p01_rewrite" -> prompts/p01_rewrite.txt).
+prompts:
+  - p01_rewrite_sentence
+  - p02_open_paragraph
+
+# Each "backend" is a (provider, model) pair you want to sweep.
+# Name it whatever's convenient; the label is what shows up in grid.tsv.
+backends:
+  - label: claude-opus
+    provider: anthropic
+    model: claude-opus-4-5
+
+  - label: claude-haiku
+    provider: anthropic
+    model: claude-haiku-4-5
+
+  # Uncomment to add others:
+  # - label: gpt5
+  #   provider: openai
+  #   model: gpt-5
+  # - label: gemini-pro
+  #   provider: gemini
+  #   model: gemini-2.5-pro
+  # - label: local-qwen
+  #   provider: local
+  #   model: qwen2.5:14b
+
+# Sampling parameters to sweep. The Cartesian product of these lists is taken
+# per backend. Use `null` for top_k to skip it (required for OpenAI-shaped
+# providers that don't support it).
+parameters:
+  temperature: [0.7, 1.0, 1.2, 1.4, 1.6]
+  top_p:       [0.8, 0.95]
+  top_k:       [null]     # or [20, 40, null] if all your backends support it
+
+# How many samples to draw per (prompt × backend × param) cell.
+# The paper suggests even N=1 works, but for exploration you want enough
+# samples to see the variance within a cell.
+n_samples: 4
+
+# Generation length cap. Set high enough for the longest plausible output;
+# you'll use finish_reason=="length" in generations.tsv to spot truncations.
+max_tokens: 4000
+
+# Optional: system prompt applied to every generation. Leave blank to omit.
+system: |
+  You are helping with creative writing. Produce only the requested output —
+  no preamble, no commentary, no explanation of your choices.

@@ -1,0 +1,41 @@
+# Rubric for review.py. Each criterion is scored 1-5 by the reviewing model.
+# Scores and short justifications are written to reviews.tsv as JSON.
+#
+# Edit this file to reflect what "good" means for your specific use case.
+# Fewer, sharper criteria produce more useful scores than many vague ones.
+
+# Reviewer model (same adapter as explore.py; can be a different provider).
+reviewer:
+  provider: anthropic
+  model: claude-opus-4-5
+  # Use a low temperature for review — we want precision, not exploration.
+  temperature: 0.2
+  top_p: 0.95
+  top_k: null
+  max_tokens: 600
+
+criteria:
+  - id: concreteness
+    description: >
+      Uses specific, sensory detail rather than abstraction. Shows rather than
+      tells. Named things over categories.
+
+  - id: freshness
+    description: >
+      Avoids cliché and the default LLM voice (em-dashes, balanced triads,
+      "not X but Y" constructions, overused metaphors). Surprising but earned.
+
+  - id: rhythm
+    description: >
+      Sentences vary in length and cadence. Reads aloud well. No mechanical
+      repetition of structure.
+
+  - id: fit_to_prompt
+    description: >
+      Does what the prompt actually asked for. Stays in the requested register
+      and scope. No unnecessary preamble or meta-commentary.
+
+  - id: overall
+    description: >
+      Holistic judgement: would you keep this, edit it, or throw it away?
+      1=throw away, 3=edit heavily, 5=keep as-is.
