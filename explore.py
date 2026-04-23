@@ -41,6 +41,9 @@ GEN_FIELDS = [
     "input_tokens",
     "output_tokens",
     "latency_ms",
+    "ttft_ms",
+    "tokens_per_sec",
+    "reasoning_tokens",
     "raw_response_id",
     "status",           # ok | error | unsupported_param | config_error
     "error",            # error message if status != ok, else ""
@@ -158,6 +161,9 @@ def main() -> None:
                     "input_tokens": 0,
                     "output_tokens": 0,
                     "latency_ms": 0,
+                    "ttft_ms": 0,
+                    "tokens_per_sec": 0.0,
+                    "reasoning_tokens": 0,
                     "raw_response_id": "",
                     "status": "ok",
                     "error": "",
@@ -180,6 +186,9 @@ def main() -> None:
                         input_tokens=result.input_tokens,
                         output_tokens=result.output_tokens,
                         latency_ms=result.latency_ms,
+                        ttft_ms=result.ttft_ms,
+                        tokens_per_sec=result.tokens_per_sec,
+                        reasoning_tokens=result.reasoning_tokens,
                         raw_response_id=result.raw_response_id,
                         output_text=_sanitize_for_tsv(result.text),
                     )
@@ -206,9 +215,12 @@ def main() -> None:
                 
                 t_str = "null" if row["temperature"] is None else f"{row['temperature']:.2f}"
                 p_str = "null" if row["top_p"] is None else f"{row['top_p']:.2f}"
+                ttft_str = f"{record['ttft_ms']}ms"
+                speed_str = f"{record['tokens_per_sec']:.1f}t/s"
                 
                 print(f"  {marker} {run_id}/{sample_idx}  {row['backend_label']:20s}  "
                       f"T={t_str} top_p={p_str}  "
+                      f"time={ttft_str} speed={speed_str} "
                       f"[{record['status']}]")
     finally:
         f.close()

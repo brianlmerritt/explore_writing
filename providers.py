@@ -37,6 +37,9 @@ class GenerationResult:
     input_tokens: int
     output_tokens: int
     latency_ms: int
+    ttft_ms: int
+    tokens_per_sec: float
+    reasoning_tokens: int
     raw_response_id: str
     # Stored for debugging / rerunning; not usually needed downstream.
     provider: str
@@ -211,19 +214,34 @@ def _generate_anthropic(
     if system is not None:
         kwargs["system"] = system
 
-    resp = client.messages.create(**kwargs)
-
-    # Assemble text from content blocks (ignore tool_use / thinking blocks if any)
-    text_parts = [b.text for b in resp.content if getattr(b, "type", None) == "text"]
-    text = "".join(text_parts)
-
+    t0 = time.perf_counter()
+    t_first = None
+    text_parts = []
+    
+    with client.messages.stream(**kwargs) as stream:
+        for text in stream.text_stream:
+            if t_first is None:
+                t_first = time.perf_counter()
+            text_parts.append(text)
+            
+        final_msg = stream.get_final_message()
+        
+    t_end = time.perf_counter()
+    ttft_ms = int((t_first - t0) * 1000) if t_first else 0
+    gen_time = t_end - (t_first if t_first else t0)
+    
+    output_tokens = final_msg.usage.output_tokens
+    
     return GenerationResult(
-        text=text,
-        finish_reason=resp.stop_reason or "",
-        input_tokens=resp.usage.input_tokens,
-        output_tokens=resp.usage.output_tokens,
+        text="".join(text_parts),
+        finish_reason=final_msg.stop_reason or "",
+        input_tokens=final_msg.usage.input_tokens,
+        output_tokens=output_tokens,
         latency_ms=0,  # filled in by caller
-        raw_response_id=resp.id,
+        ttft_ms=ttft_ms,
+        tokens_per_sec=(output_tokens / gen_time) if gen_time > 0 and output_tokens > 0 else 0.0,
+        reasoning_tokens=0,
+        raw_response_id=final_msg.id,
         provider="",   # filled in by caller
         model="",      # filled in by caller
     )
@@ -255,7 +273,11 @@ def _generate_openai_compat(
         model=model,
         messages=messages,
         max_tokens=max_tokens,
+        stream=True,
     )
+    # Most newer openai-compat providers support stream_options
+    kwargs["stream_options"] = {"include_usage": True}
+    
     if T is not None:
         kwargs["temperature"] = T
     if top_p is not None:
@@ -265,27 +287,62 @@ def _generate_openai_compat(
     if top_k is not None:
         kwargs["extra_body"] = {"top_k": top_k}
 
+    t0 = time.perf_counter()
+    t_first = None
+    text_parts = []
+    reasoning_parts = []
+    finish_reason = ""
+    raw_response_id = ""
+    input_tokens = 0
+    output_tokens = 0
+    reasoning_tokens = 0
+
     resp = client.chat.completions.create(**kwargs)
-    choice = resp.choices[0]
+    for chunk in resp:
+        if t_first is None and (chunk.choices or getattr(chunk, "usage", None)):
+            t_first = time.perf_counter()
+            
+        raw_response_id = chunk.id or raw_response_id
+        
+        if chunk.choices:
+            choice = chunk.choices[0]
+            if getattr(choice.delta, "content", None):
+                text_parts.append(choice.delta.content)
+            
+            # Catch "reasoning_content" (DeepSeek format) or "reasoning"
+            reasoning = getattr(choice.delta, "reasoning_content", None) or getattr(choice.delta, "reasoning", None)
+            if reasoning:
+                reasoning_parts.append(reasoning)
+                
+            if getattr(choice, "finish_reason", None):
+                finish_reason = choice.finish_reason
+                
+        usage = getattr(chunk, "usage", None)
+        if usage:
+            input_tokens = getattr(usage, "prompt_tokens", 0)
+            output_tokens = getattr(usage, "completion_tokens", 0)
+            details = getattr(usage, "completion_tokens_details", None)
+            if details:
+                reasoning_tokens = getattr(details, "reasoning_tokens", 0)
 
-    usage = resp.usage
-    input_tokens = getattr(usage, "prompt_tokens", 0) if usage else 0
-    output_tokens = getattr(usage, "completion_tokens", 0) if usage else 0
-
-    text = choice.message.content or ""
-    # Some local models or deep thinking APIs might place the output in "reasoning"
-    # if content is completely empty. We'll fallback to reasoning if there's no actual output text.
+    t_end = time.perf_counter()
+    ttft_ms = int((t_first - t0) * 1000) if t_first else 0
+    gen_time = t_end - (t_first if t_first else t0)
+    
+    text = "".join(text_parts)
     if not text:
-        text = getattr(choice.message, "reasoning", "") or ""
+        text = "".join(reasoning_parts)
 
     return GenerationResult(
         text=text,
-        finish_reason=choice.finish_reason or "",
+        finish_reason=finish_reason,
         input_tokens=input_tokens,
-
         output_tokens=output_tokens,
         latency_ms=0,
-        raw_response_id=resp.id,
+        ttft_ms=ttft_ms,
+        tokens_per_sec=(output_tokens / gen_time) if gen_time > 0 and output_tokens > 0 else 0.0,
+        reasoning_tokens=reasoning_tokens,
+        raw_response_id=raw_response_id,
         provider="",
         model="",
     )

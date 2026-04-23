@@ -26,7 +26,7 @@ from providers import generate, UnsupportedParam, ProviderConfigError
 ROOT = Path(__file__).parent
 RUBRIC = ROOT / "rubric.yaml"
 DATA_DIR = ROOT / "data"
-GEN_PATH = DATA_DIR / "generations.tsv"
+GEN_PATH = DATA_DIR / "generations_pass1.tsv"
 REV_PATH = DATA_DIR / "reviews.tsv"
 
 REV_FIELDS = [
@@ -50,11 +50,14 @@ for writing you would genuinely want to keep. Most writing scores 2-3."""
 
 def _build_review_prompt(rubric: dict, prompt_text: str, output_text: str) -> str:
     criteria_lines = []
+    score_keys_example = []
     for c in rubric["criteria"]:
         desc = " ".join(c["description"].split())  # collapse whitespace
         criteria_lines.append(f"- {c['id']}: {desc}")
+        score_keys_example.append(f'    "{c["id"]}": <integer 1-5>')
+        
     criteria_block = "\n".join(criteria_lines)
-    ids_list = ", ".join(f'"{c["id"]}"' for c in rubric["criteria"])
+    scores_block_example = ",\n".join(score_keys_example)
 
     return f"""I will show you a writing prompt and a piece of writing produced in response.
 Score the writing against each rubric criterion on a 1-5 integer scale.
@@ -72,10 +75,13 @@ WRITING TO SCORE:
 {output_text}
 \"\"\"
 
-Respond with ONLY a JSON object, no other text, in exactly this shape:
+Respond with ONLY a JSON object, no other text. Use exactly this format:
 
 {{
-  "scores": {{ {ids_list}: <integer 1-5> }},
+  "scratchpad": "<think through the criteria and evaluate the writing here first>",
+  "scores": {{
+{scores_block_example}
+  }},
   "notes": "<one or two sentences naming the single most interesting thing about this piece and the single biggest weakness>"
 }}"""
 
@@ -179,6 +185,35 @@ def _validate_scores(obj: dict, rubric: dict) -> tuple[dict, str]:
     return cleaned, notes
 
 
+def _salvage_response(text: str, rubric: dict) -> tuple[dict, str]:
+    """Fallback regex extraction to salvage scores and notes from broken JSON."""
+    scores = {}
+    expected = {c["id"] for c in rubric["criteria"]}
+    
+    for k in expected:
+        # Match either quoted or unquoted keys like: "concreteness": 4 or concreteness: 4
+        pattern = rf'"{k}"\s*:\s*([1-5])|\b{k}\b\s*:\s*([1-5])'
+        match = re.search(pattern, text, re.IGNORECASE)
+        if match:
+            # group 1 is quoted match, group 2 is unquoted match
+            val = match.group(1) or match.group(2)
+            scores[k] = int(val)
+            
+    missing = expected - set(scores.keys())
+    if missing:
+        raise ValueError(f"Regex fallback missing scores for: {sorted(missing)}")
+        
+    # Attempt to pull out something resembling notes
+    notes_match = re.search(r'"notes"\s*:\s*"([^"]+)"', text, re.IGNORECASE)
+    if notes_match:
+        notes = notes_match.group(1)
+    else:
+        # Just grab raw snippets as notes
+        notes = "[Salvaged via Regex] " + text.replace("\n", " ").replace("\t", " ").strip()[:300]
+        
+    return scores, notes
+
+
 def main() -> None:
     rubric = yaml.safe_load(RUBRIC.read_text(encoding="utf-8"))
     reviewer = rubric["reviewer"]
@@ -218,37 +253,56 @@ def main() -> None:
                 "notes": "",
             }
 
-            try:
-                result = generate(
-                    provider=reviewer["provider"],
-                    model=reviewer["model"],
-                    prompt=review_prompt,
-                    T=float(reviewer["temperature"]),
-                    top_p=float(reviewer["top_p"]),
-                    top_k=reviewer.get("top_k"),
-                    max_tokens=int(reviewer["max_tokens"]),
-                    system=REVIEW_SYSTEM,
-                )
+            MAX_RETRIES = 3
+            for attempt in range(MAX_RETRIES):
                 try:
-                    parsed = _extract_json(result.text)
-                    scores, notes = _validate_scores(parsed, rubric)
-                    record["scores_json"] = json.dumps(scores, sort_keys=True)
-                    record["notes"] = notes.replace("\t", " ").replace("\n", " ")
-                except (ValueError, json.JSONDecodeError) as e:
-                    record["status"] = "parse_error"
-                    record["error"] = f"{type(e).__name__}: {e}"
-                    # Still log the raw text for debugging
-                    record["notes"] = result.text[:500].replace("\t", " ").replace("\n", " ")
+                    result = generate(
+                        provider=reviewer["provider"],
+                        model=reviewer["model"],
+                        prompt=review_prompt,
+                        T=float(reviewer["temperature"]),
+                        top_p=float(reviewer["top_p"]),
+                        top_k=reviewer.get("top_k"),
+                        max_tokens=int(reviewer["max_tokens"]),
+                        system=REVIEW_SYSTEM,
+                    )
+                    try:
+                        parsed = _extract_json(result.text)
+                        scores, notes = _validate_scores(parsed, rubric)
+                        record["scores_json"] = json.dumps(scores, sort_keys=True)
+                        record["notes"] = notes.replace("\t", " ").replace("\n", " ")
+                        record["status"] = "ok"
+                        break  # Success! Exit the retry loop
+                    except (ValueError, json.JSONDecodeError) as e:
+                        # Attempt a regex fallback
+                        try:
+                            scores, notes = _salvage_response(result.text, rubric)
+                            record["status"] = "ok"
+                            record["scores_json"] = json.dumps(scores, sort_keys=True)
+                            record["notes"] = notes.replace("\t", " ").replace("\n", " ")
+                            break  # Success regex salvage! Exit the retry loop
+                        except ValueError as fallback_e:
+                            if attempt == MAX_RETRIES - 1:
+                                record["status"] = "parse_error"
+                                record["error"] = f"{type(e).__name__}: {e} (Fallback regex failed: {fallback_e})"
+                                record["notes"] = result.text[:500].replace("\t", " ").replace("\n", " ")
+                            else:
+                                print(f"  ↻ Retrying {gen['run_id']}/{gen['sample_idx']} (parse failed on attempt {attempt + 1})")
+                                continue  # Try again
 
-            except UnsupportedParam as e:
-                record["status"] = "error"
-                record["error"] = f"UnsupportedParam: {e}"
-            except ProviderConfigError as e:
-                record["status"] = "error"
-                record["error"] = f"ProviderConfigError: {e}"
-            except Exception as e:
-                record["status"] = "error"
-                record["error"] = f"{type(e).__name__}: {e}"
+                except UnsupportedParam as e:
+                    record["status"] = "error"
+                    record["error"] = f"UnsupportedParam: {e}"
+                    break  # Don't retry API config errors
+                except ProviderConfigError as e:
+                    record["status"] = "error"
+                    record["error"] = f"ProviderConfigError: {e}"
+                    break
+                except Exception as e:
+                    record["status"] = "error"
+                    record["error"] = f"{type(e).__name__}: {e}"
+                    # We could retry generic connection exceptions here if we wanted to
+                    break
 
             writer.writerow(record)
             f.flush()
