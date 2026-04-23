@@ -104,8 +104,8 @@ def _coerce(row: dict) -> dict:
     """Turn string values from grid.tsv into the right Python types."""
     return {
         **row,
-        "temperature": float(row["temperature"]),
-        "top_p": float(row["top_p"]),
+        "temperature": None if row["temperature"] == "" else float(row["temperature"]),
+        "top_p": None if row["top_p"] == "" else float(row["top_p"]),
         "top_k": None if row["top_k"] == "" else int(row["top_k"]),
         "n_samples": int(row["n_samples"]),
         "max_tokens": int(row["max_tokens"]),
@@ -190,6 +190,9 @@ def main() -> None:
                 except ProviderConfigError as e:
                     record["status"] = "config_error"
                     record["error"] = str(e)
+                except KeyboardInterrupt:
+                    print("\n[!] Ctrl-C detected. Abandoning current request and exiting...")
+                    sys.exit(130)  # Standard exit code for SIGINT
                 except Exception as e:
                     # Catch-all: network errors, API errors, rate limits, etc.
                     # Logged so explore.py keeps moving through the grid.
@@ -200,8 +203,12 @@ def main() -> None:
                 f.flush()  # persist immediately so Ctrl-C doesn't lose work
 
                 marker = "✓" if record["status"] == "ok" else "✗"
+                
+                t_str = "null" if row["temperature"] is None else f"{row['temperature']:.2f}"
+                p_str = "null" if row["top_p"] is None else f"{row['top_p']:.2f}"
+                
                 print(f"  {marker} {run_id}/{sample_idx}  {row['backend_label']:20s}  "
-                      f"T={row['temperature']:.2f} top_p={row['top_p']:.2f}  "
+                      f"T={t_str} top_p={p_str}  "
                       f"[{record['status']}]")
     finally:
         f.close()

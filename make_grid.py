@@ -61,7 +61,6 @@ def main() -> None:
 
     prompts = spec["prompts"]
     backends = spec["backends"]
-    params = spec["parameters"]
     n_samples = int(spec["n_samples"])
     max_tokens = int(spec["max_tokens"])
     system = spec.get("system") or ""
@@ -70,32 +69,36 @@ def main() -> None:
     # Pre-read and pre-hash all prompts (catches missing files before we start)
     prompt_hashes = {pid: _short_hash(_read_prompt(pid)) for pid in prompts}
 
-    temperatures = params["temperature"]
-    top_ps = params["top_p"]
-    top_ks = params.get("top_k", [None])
-
     DATA_DIR.mkdir(exist_ok=True)
 
     rows = []
     run_id = 1
-    for prompt_id, backend, T, top_p, top_k in itertools.product(
-        prompts, backends, temperatures, top_ps, top_ks
-    ):
-        rows.append({
-            "run_id": f"r{run_id:05d}",
-            "prompt_id": prompt_id,
-            "prompt_hash": prompt_hashes[prompt_id],
-            "backend_label": backend["label"],
-            "provider": backend["provider"],
-            "model": backend["model"],
-            "temperature": T,
-            "top_p": top_p,
-            "top_k": "" if top_k is None else top_k,
-            "n_samples": n_samples,
-            "max_tokens": max_tokens,
-            "system_hash": system_hash,
-        })
-        run_id += 1
+    for prompt_id in prompts:
+        for backend in backends:
+            if not backend.get("use_in_grid", True):
+                continue
+                
+            params = backend.get("parameters", {})
+            temperatures = params.get("temperature", [None])
+            top_ps = params.get("top_p", [None])
+            top_ks = params.get("top_k", [None])
+
+            for T, top_p, top_k in itertools.product(temperatures, top_ps, top_ks):
+                rows.append({
+                    "run_id": f"r{run_id:05d}",
+                    "prompt_id": prompt_id,
+                    "prompt_hash": prompt_hashes[prompt_id],
+                    "backend_label": backend["label"],
+                    "provider": backend["provider"],
+                    "model": backend["model"],
+                    "temperature": "" if T is None else T,
+                    "top_p": "" if top_p is None else top_p,
+                    "top_k": "" if top_k is None else top_k,
+                    "n_samples": n_samples,
+                    "max_tokens": max_tokens,
+                    "system_hash": system_hash,
+                })
+                run_id += 1
 
     with GRID_PATH.open("w", encoding="utf-8", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=GRID_FIELDS, delimiter="\t")

@@ -13,36 +13,107 @@ prompts:
 # Name it whatever's convenient; the label is what shows up in grid.tsv.
 backends:
   - label: claude-opus
+    use_in_grid: false
     provider: anthropic
-    model: claude-opus-4-5
+    model: claude-opus-4-7
+    parameters:
+      temperature: [0.7, 0.8, 0.9, 1.0]
+      # top_p: [0.8, 0.95]
+      # top_k: [null]
+
+  - label: claude-sonnet
+    use_in_grid: true
+    provider: anthropic
+    model: claude-sonnet-4-6
+    parameters:
+      temperature: [0.7, 0.8, 0.9, 1.0]
+      # top_p: [0.8, 0.95]
+      # top_k: [null]
 
   - label: claude-haiku
+    use_in_grid: true
     provider: anthropic
-    model: claude-haiku-4-5
+    model: claude-haiku-4-5-20251001
+    parameters:
+      temperature: [0.7, 0.8, 0.9, 1.0]
+      # top_p: [0.8, 0.95]
+      # top_k: [null]
 
-  # Uncomment to add others:
-  # - label: gpt5
-  #   provider: openai
-  #   model: gpt-5
-  # - label: gemini-pro
-  #   provider: gemini
-  #   model: gemini-2.5-pro
-  # - label: local-qwen
-  #   provider: local
-  #   model: qwen2.5:14b
+  - label: gpt5
+    use_in_grid: false
+    provider: openai
+    model: gpt-5
+    parameters:
+      temperature: [0.7, 1.0]
+      top_p: [1.0]
 
-# Sampling parameters to sweep. The Cartesian product of these lists is taken
-# per backend. Use `null` for top_k to skip it (required for OpenAI-shaped
-# providers that don't support it).
-parameters:
-  temperature: [0.7, 1.0, 1.2, 1.4, 1.6]
-  top_p:       [0.8, 0.95]
-  top_k:       [null]     # or [20, 40, null] if all your backends support it
+  - label: gemini-pro
+    use_in_grid: false
+    provider: gemini
+    model: gemini-2.5-pro
+    parameters:
+      temperature: [0.7, 1.0]
+      top_p: [0.8]
+      top_k: [40]
+
+  - label: openrouter-m2.7
+    use_in_grid: true
+    provider: openrouter
+    model: minimax/minimax-m2.7
+    parameters:
+      temperature: [0.7, 1.0, 1.2, 1.4, 1.6]
+      top_p: [0.8, 0.95]
+      top_k: [null]
+
+  - label: openrouter-glm-5.1
+    use_in_grid: true
+    provider: openrouter
+    model: z-ai/glm-5.1
+    parameters:
+      temperature: [0.7, 1.0, 1.2, 1.4, 1.6]
+      top_p: [0.8, 0.95]
+      top_k: [null]
+
+  - label: openrouter-kimi-k2.6
+    use_in_grid: true
+    provider: openrouter
+    model: moonshotai/kimi-k2.6
+    parameters:
+      temperature: [0.7, 1.0, 1.2, 1.4, 1.6]
+      top_p: [0.8, 0.95]
+      top_k: [null]
+
+  - label: openrouter-mimo-v2-omni
+    use_in_grid: true
+    provider: openrouter
+    model: xiaomi/mimo-v2-omni
+    parameters:
+      temperature: [0.7, 1.0, 1.2, 1.4, 1.6]
+      top_p: [0.8, 0.95]
+      top_k: [null]
+
+  - label: local-qwen3-30b
+    use_in_grid: false
+    provider: local
+    model: qwen3:30b
+    parameters:
+      temperature: [0.7, 1.0, 1.2, 1.4, 1.6]
+      top_p: [0.8, 0.95]
+      top_k: [null]
+
+  - label: local-gpt-oss
+    use_in_grid: false
+    provider: local
+    model: gpt-oss:20b
+    parameters:
+      temperature: [0.7, 1.0, 1.2, 1.4, 1.6]
+      top_p: [0.8, 0.95]
+      top_k: [null]
 
 # How many samples to draw per (prompt × backend × param) cell.
 # The paper suggests even N=1 works, but for exploration you want enough
 # samples to see the variance within a cell.
-n_samples: 4
+n_samples: 1
 
 # Generation length cap. Set high enough for the longest plausible output;
 # you'll use finish_reason=="length" in generations.tsv to spot truncations.
@@ -51,4 +122,4 @@ max_tokens: 4000
 # Optional: system prompt applied to every generation. Leave blank to omit.
 system: |
   You are helping with creative writing. Produce only the requested output —
-  no preamble, no commentary, no explanation of your choices.
+  no preamble, no commentary. Thinking is OK, but no explanation of your choices.

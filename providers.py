@@ -67,7 +67,7 @@ CAPABILITIES = {
     "anthropic":  {"supports_top_k": True},
     "openai":     {"supports_top_k": False},
     "gemini":     {"supports_top_k": True},   # via google-genai-compat OpenAI endpoint
-    "openrouter": {"supports_top_k": False},  # conservative default
+    "openrouter": {"supports_top_k": True},   # depends on underlying model
     "local":      {"supports_top_k": False},  # conservative default
 }
 
@@ -144,8 +144,8 @@ def generate(
     provider: str,
     model: str,
     prompt: str,
-    T: float,
-    top_p: float,
+    T: Optional[float],
+    top_p: Optional[float],
     top_k: Optional[int],
     max_tokens: int,
     seed: Optional[int] = None,
@@ -173,7 +173,7 @@ def generate(
     else:
         # openai, gemini, openrouter, local — all share the OpenAI SDK shape
         result = _generate_openai_compat(
-            provider, model, prompt, T, top_p, max_tokens, seed, system
+            provider, model, prompt, T, top_p, top_k, max_tokens, seed, system
         )
 
     result.latency_ms = int((time.perf_counter() - t0) * 1000)
@@ -189,8 +189,8 @@ def generate(
 def _generate_anthropic(
     model: str,
     prompt: str,
-    T: float,
-    top_p: float,
+    T: Optional[float],
+    top_p: Optional[float],
     top_k: Optional[int],
     max_tokens: int,
     system: Optional[str],
@@ -200,10 +200,12 @@ def _generate_anthropic(
     kwargs = dict(
         model=model,
         max_tokens=max_tokens,
-        temperature=T,
-        top_p=top_p,
         messages=[{"role": "user", "content": prompt}],
     )
+    if T is not None:
+        kwargs["temperature"] = T
+    if top_p is not None:
+        kwargs["top_p"] = top_p
     if top_k is not None:
         kwargs["top_k"] = top_k
     if system is not None:
@@ -235,8 +237,9 @@ def _generate_openai_compat(
     provider: str,
     model: str,
     prompt: str,
-    T: float,
-    top_p: float,
+    T: Optional[float],
+    top_p: Optional[float],
+    top_k: Optional[int],
     max_tokens: int,
     seed: Optional[int],
     system: Optional[str],
@@ -251,12 +254,16 @@ def _generate_openai_compat(
     kwargs = dict(
         model=model,
         messages=messages,
-        temperature=T,
-        top_p=top_p,
         max_tokens=max_tokens,
     )
+    if T is not None:
+        kwargs["temperature"] = T
+    if top_p is not None:
+        kwargs["top_p"] = top_p
     if seed is not None:
         kwargs["seed"] = seed
+    if top_k is not None:
+        kwargs["extra_body"] = {"top_k": top_k}
 
     resp = client.chat.completions.create(**kwargs)
     choice = resp.choices[0]
@@ -265,13 +272,77 @@ def _generate_openai_compat(
     input_tokens = getattr(usage, "prompt_tokens", 0) if usage else 0
     output_tokens = getattr(usage, "completion_tokens", 0) if usage else 0
 
+    text = choice.message.content or ""
+    # Some local models or deep thinking APIs might place the output in "reasoning"
+    # if content is completely empty. We'll fallback to reasoning if there's no actual output text.
+    if not text:
+        text = getattr(choice.message, "reasoning", "") or ""
+
     return GenerationResult(
-        text=choice.message.content or "",
+        text=text,
         finish_reason=choice.finish_reason or "",
         input_tokens=input_tokens,
+
         output_tokens=output_tokens,
         latency_ms=0,
         raw_response_id=resp.id,
         provider="",
         model="",
     )
+
+
+# ---------------------------------------------------------------------------
+# Sanity check script
+# ---------------------------------------------------------------------------
+
+if __name__ == "__main__":
+    import sys
+    from pathlib import Path
+
+    try:
+        import yaml
+    except ImportError:
+        sys.exit("ERROR: pyyaml is not installed. Please install it to run the sanity check.")
+
+    spec_path = Path(__file__).parent / "spec.yaml"
+    if not spec_path.exists():
+        sys.exit("ERROR: spec.yaml not found.")
+
+    spec = yaml.safe_load(spec_path.read_text(encoding="utf-8"))
+    backends = spec.get("backends", [])
+
+    if not backends:
+        sys.exit("No backends found in spec.yaml.")
+
+    print(f"Checking {len(backends)} backends from spec.yaml...\n")
+
+    for backend in backends:
+        label = backend.get("label", "unknown")
+        provider = backend.get("provider")
+        model = backend.get("model")
+
+        print(f"• [{label}] provider={provider!r}, model={model!r}")
+
+        if provider not in CAPABILITIES:
+            print(f"  ❌ ERROR: Unknown provider {provider!r}")
+            continue
+
+        try:
+            if provider == "anthropic":
+                client = _anthropic_client()
+                available_models = [m.id for m in client.models.list().data]
+            else:
+                client = _openai_compat_client(provider)
+                available_models = [m.id for m in client.models.list().data]
+
+            if model in available_models:
+                print("  ✅ OK (connected & model found)")
+            else:
+                print("  ⚠️  WARNING: Connected successfully, but model was not found in the provider's /models list.")
+                
+        except ProviderConfigError as e:
+            print(f"  ❌ CONFIG ERROR: {e}")
+        except Exception as e:
+            print(f"  ❌ API/CONNECTION ERROR: {type(e).__name__}: {e}")
+            
+    print("\nCheck complete.")
