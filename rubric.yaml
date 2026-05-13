@@ -6,11 +6,11 @@
 
 # Reviewer model (same adapter as explore.py; can be a different provider).
 reviewer:
-  provider: local
-  model: gpt-oss:20b
+  provider: anthropic
+  model: claude-sonnet-4-6
   # Use a low temperature for review — we want precision, not exploration.
   temperature: 0.2
-  top_p: 0.95
+  # top_p: 0.95
   top_k: null
   max_tokens: 4000
 

@@ -70,7 +70,7 @@ backends:
     provider: openrouter
     model: z-ai/glm-5.1
     parameters:
-      temperature: [0.7, 1.0, 1.2, 1.4, 1.5]
+      temperature: [0.7, 1.0, 1.2, 1.4, 1.6]
       top_p: [0.8, 0.95]
       top_k: [null]
 

@@ -260,10 +260,10 @@ def main() -> None:
                         provider=reviewer["provider"],
                         model=reviewer["model"],
                         prompt=review_prompt,
-                        T=float(reviewer["temperature"]),
-                        top_p=float(reviewer["top_p"]),
+                        T=float(reviewer["temperature"]) if reviewer.get("temperature") is not None else None,
+                        top_p=float(reviewer["top_p"]) if reviewer.get("top_p") is not None else None,
                         top_k=reviewer.get("top_k"),
-                        max_tokens=int(reviewer["max_tokens"]),
+                        max_tokens=int(reviewer["max_tokens"]) if reviewer.get("max_tokens") is not None else None,
                         system=REVIEW_SYSTEM,
                     )
                     try:
