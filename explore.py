@@ -95,18 +95,6 @@ def _open_append_writer():
     return f, writer
 
 
-def _sanitize_for_tsv(text: str) -> str:
-    """Replace tabs and newlines so TSV stays one-row-per-record.
-
-    Newlines in outputs are replaced with a visible marker so the content
-    is preserved but the TSV parser stays sane. Use ⏎ (U+23CE) which is
-    rare enough in LLM output to round-trip without ambiguity for most
-    uses; if you need exact fidelity, read the raw response via
-    raw_response_id instead.
-    """
-    return text.replace("\t", "    ").replace("\r\n", "⏎").replace("\n", "⏎")
-
-
 def _strip_thinking(text: str) -> str:
     """Best-effort removal of chain-of-thought style scaffolding."""
     if not text:
