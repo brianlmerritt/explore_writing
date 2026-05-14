@@ -388,8 +388,6 @@ def _generate_openai_compat(
     gen_time = t_end - (t_first if t_first else t0)
     
     text = "".join(text_parts)
-    if not text:
-        text = "".join(reasoning_parts)
 
     return GenerationResult(
         text=text,

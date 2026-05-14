@@ -165,11 +165,11 @@ n_samples: 1
 
 # Generation length cap. Set high enough for the longest plausible output;
 # you'll use finish_reason=="length" in generations.tsv to spot truncations.
-max_tokens: 20000
+max_tokens: 40000
 
 # Optional: system prompt applied to every generation. Leave blank to omit.
 system: |
   You are helping with creative writing. Produce only the requested prose.
   Do not include headings such as "analysis", "thinking", "plan", "draft", "notes", or "reasoning".
   Do not explain your approach.
-  Begin directly with the first sentence of the story.
+  Begin directly with the first sentence of the final story without any thoughts, checking or rewrites.
