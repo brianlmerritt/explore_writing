@@ -18,12 +18,21 @@ import sys
 from pathlib import Path
 
 import yaml
+from dotenv import load_dotenv
+
+load_dotenv()
 
 ROOT = Path(__file__).parent
 SPEC = ROOT / "spec.yaml"
-PROMPTS_DIR = ROOT / "prompts"
 DATA_DIR = ROOT / "data"
 GRID_PATH = DATA_DIR / "grid.tsv"
+TEMP_PROMPTS_DIR = ROOT / "temp_prompts"
+
+_env_prompt = os.environ.get("PROMPT_FOLDER_PATH", "")
+PROMPT_FOLDER = Path(_env_prompt) if _env_prompt and _env_prompt != "." else ROOT / "prompt_examples"
+
+_env_recipe = os.environ.get("PROMPT_RECIPE_FOLDER_PATH", "")
+PROMPT_RECIPE_FOLDER = Path(_env_recipe) if _env_recipe and _env_recipe != "." else ROOT / "prompt_recipe_examples"
 
 GRID_FIELDS = [
     "run_id",
@@ -41,11 +50,19 @@ GRID_FIELDS = [
 ]
 
 
-def _read_prompt(prompt_id: str) -> str:
-    path = PROMPTS_DIR / f"{prompt_id}.txt"
-    if not path.exists():
-        sys.exit(f"ERROR: prompt file not found: {path}")
-    return path.read_text(encoding="utf-8")
+def _expand_recipe(recipe_id: str) -> str:
+    """Read a recipe yaml, concatenate its prompt files, return combined text."""
+    recipe_path = PROMPT_RECIPE_FOLDER / f"{recipe_id}.yaml"
+    if not recipe_path.exists():
+        sys.exit(f"ERROR: recipe file not found: {recipe_path} - is it listed in spec.yaml but missing from {PROMPT_RECIPE_FOLDER}?")
+    recipe = yaml.safe_load(recipe_path.read_text(encoding="utf-8"))
+    parts = []
+    for pid in recipe["prompts"]:
+        p_path = PROMPT_FOLDER / f"{pid}.md"
+        if not p_path.exists():
+            sys.exit(f"ERROR: prompt file not found: {p_path}  (referenced by recipe {recipe_id})")
+        parts.append(p_path.read_text(encoding="utf-8").strip())
+    return "\n\n".join(parts)
 
 
 def _short_hash(s: str) -> str:
@@ -59,21 +76,29 @@ def main() -> None:
 
     spec = yaml.safe_load(SPEC.read_text(encoding="utf-8"))
 
-    prompts = spec["prompts"]
+    recipe_ids = spec["recipes"]
     backends = spec["backends"]
     n_samples = int(spec["n_samples"])
     max_tokens = int(spec["max_tokens"])
     system = spec.get("system") or ""
     system_hash = _short_hash(system) if system else ""
 
-    # Pre-read and pre-hash all prompts (catches missing files before we start)
-    prompt_hashes = {pid: _short_hash(_read_prompt(pid)) for pid in prompts}
+    # Expand each recipe into a combined prompt, write to temp_prompts/, pre-hash.
+    # This catches missing files before we touch the grid.
+    TEMP_PROMPTS_DIR.mkdir(exist_ok=True)
+    prompt_hashes = {}
+    for rid in recipe_ids:
+        combined = _expand_recipe(rid)
+        out_path = TEMP_PROMPTS_DIR / f"{rid}.md"
+        out_path.write_text(combined, encoding="utf-8")
+        prompt_hashes[rid] = _short_hash(combined)
+    print(f"Wrote {len(recipe_ids)} combined prompt(s) to {TEMP_PROMPTS_DIR.relative_to(ROOT)}/")
 
     DATA_DIR.mkdir(exist_ok=True)
 
     rows = []
     run_id = 1
-    for prompt_id in prompts:
+    for prompt_id in recipe_ids:
         for backend in backends:
             if not backend.get("use_in_grid", True):
                 continue

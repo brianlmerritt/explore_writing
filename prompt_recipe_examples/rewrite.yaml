@@ -1,0 +1,4 @@
+title: "Sentence Rewrite"
+description: "Rewrites a sentence to improve rhythm and specificity"
+prompts:
+  - p01_rewrite_sentence

@@ -82,6 +82,35 @@ CAPABILITIES = {
 _clients: dict = {}
 
 
+def _env_int(name: str) -> Optional[int]:
+    raw = os.environ.get(name)
+    if raw is None or raw.strip() == "":
+        return None
+    try:
+        val = int(raw)
+    except ValueError:
+        raise ProviderConfigError(f"{name} must be an integer, got: {raw!r}")
+    if val <= 0:
+        raise ProviderConfigError(f"{name} must be > 0, got: {val}")
+    return val
+
+
+def _thinking_budget_tokens(provider: str) -> Optional[int]:
+    """Return provider-specific or global reasoning token budget if configured."""
+    per_provider = {
+        "openrouter": "OPENROUTER_THINKING_BUDGET_TOKENS",
+        "local": "LOCAL_THINKING_BUDGET_TOKENS",
+        "openai": "OPENAI_THINKING_BUDGET_TOKENS",
+        "gemini": "GEMINI_THINKING_BUDGET_TOKENS",
+    }
+    specific = per_provider.get(provider)
+    if specific:
+        val = _env_int(specific)
+        if val is not None:
+            return val
+    return _env_int("THINKING_BUDGET_TOKENS")
+
+
 def _anthropic_client():
     if "anthropic" not in _clients:
         from anthropic import Anthropic
@@ -263,6 +292,7 @@ def _generate_openai_compat(
     system: Optional[str],
 ) -> GenerationResult:
     client = _openai_compat_client(provider)
+    thinking_budget = _thinking_budget_tokens(provider)
 
     messages = []
     if system is not None:
@@ -284,8 +314,22 @@ def _generate_openai_compat(
         kwargs["top_p"] = top_p
     if seed is not None:
         kwargs["seed"] = seed
+    extra_body = {}
     if top_k is not None:
-        kwargs["extra_body"] = {"top_k": top_k}
+        extra_body["top_k"] = top_k
+
+    # Provider-specific reasoning controls. Not all providers honor these.
+    if thinking_budget is not None:
+        if provider in {"openrouter", "local"}:
+            extra_body["reasoning"] = {"max_tokens": thinking_budget}
+        elif provider == "openai":
+            # OpenAI exposes reasoning effort controls rather than strict token caps.
+            kwargs["reasoning_effort"] = os.environ.get("OPENAI_REASONING_EFFORT", "low")
+        elif provider == "gemini":
+            extra_body["reasoning"] = {"max_tokens": thinking_budget}
+
+    if extra_body:
+        kwargs["extra_body"] = extra_body
 
     t0 = time.perf_counter()
     t_first = None
@@ -297,7 +341,21 @@ def _generate_openai_compat(
     output_tokens = 0
     reasoning_tokens = 0
 
-    resp = client.chat.completions.create(**kwargs)
+    try:
+        resp = client.chat.completions.create(**kwargs)
+    except Exception as e:
+        # Some OpenAI-compatible backends reject reasoning controls.
+        if thinking_budget is not None and "extra_body" in kwargs:
+            fallback_kwargs = dict(kwargs)
+            fallback_extra = dict(fallback_kwargs.get("extra_body") or {})
+            fallback_extra.pop("reasoning", None)
+            if fallback_extra:
+                fallback_kwargs["extra_body"] = fallback_extra
+            else:
+                fallback_kwargs.pop("extra_body", None)
+            resp = client.chat.completions.create(**fallback_kwargs)
+        else:
+            raise
     for chunk in resp:
         if t_first is None and (chunk.choices or getattr(chunk, "usage", None)):
             t_first = time.perf_counter()

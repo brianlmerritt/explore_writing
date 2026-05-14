@@ -1,0 +1,4 @@
+title: "Opening Paragraph"
+description: "Generates a reflective opening paragraph about illness recovery"
+prompts:
+  - p02_open_paragraph

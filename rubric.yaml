@@ -12,30 +12,62 @@ reviewer:
   temperature: 0.2
   # top_p: 0.95
   top_k: null
-  max_tokens: 4000
+  max_tokens: 8000
 
 criteria:
   - id: concreteness
     description: >
-      Uses specific, sensory detail rather than abstraction. Shows rather than
-      tells. Named things over categories.
+      Specific over abstract. Sensory and named over categorical. Objects and
+      gestures carry meaning rather than labels: "a black lacy hat festooned
+      with daisies" beats "elegant accessories"; a character pinning an empty
+      sleeve beats "she helped tenderly."
 
   - id: freshness
     description: >
-      Avoids cliché and the default LLM voice (em-dashes, balanced triads,
-      "not X but Y" constructions, overused metaphors). Surprising but earned.
+      Avoids cliché and the default LLM voice: decorative em-dashes, balanced
+      triads, "not X but Y" parallelism, "in that moment," "a wave of [emotion]
+      washed over her," adverbial speech tags, mood-setting weather, overused
+      metaphors. Surprising phrasing that feels earned, not stunt-cast.
 
   - id: rhythm
     description: >
       Sentences vary in length and cadence. Reads aloud well. No mechanical
-      repetition of structure.
+      repetition of structure. Long sentences are reserved for moments that
+      need them; short sentences land where they fall.
+
+  - id: restraint
+    description: >
+      Trusts the reader to infer. Shows rather than tells; physicalises feeling
+      rather than naming it. Doesn't gloss its own symbols, jokes, motifs or
+      backstory. No wise-narrator aphorisms, no tidy thematic wrap-ups.
+      Preserves ambiguity where the piece calls for it.
+
+  - id: voice
+    description: >
+      Has a recognisable register — diction, syntax, what it will and won't
+      say. Where multiple characters or sources speak, each sounds like itself
+      and not like the others. No collapse into the default LLM narrator who
+      sounds the same in every mouth.
+
+  - id: structure
+    description: >
+      Beginning, middle and end do distinct work. The opening drops the reader
+      into action or image, not preamble. The ending lands and stops there.
+      Motifs, callbacks and time jumps cohere; nothing is introduced and
+      abandoned, nothing repeats by accident.
 
   - id: fit_to_prompt
     description: >
-      Does what the prompt actually asked for. Stays in the requested register
-      and scope. No unnecessary preamble or meta-commentary.
+      Does what the prompt actually asked for. Stays in the requested register,
+      scope, length and form. No unnecessary preamble or meta-commentary, no
+      hedging about the task.
 
   - id: overall
     description: >
       Holistic judgement: would you keep this, edit it, or throw it away?
       1=throw away, 3=edit heavily, 5=keep as-is.
+
+  - id: compare_to_reference
+    description: >
+      Compares the piece to a reference work or example. 
+      1=much worse, 3=about the same, 5=much better.

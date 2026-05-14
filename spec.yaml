@@ -3,11 +3,12 @@
 #
 # Each "cell" produces n_samples generations.
 
-# Which prompts to include. These must exist as files in prompts/ with
-# matching filenames (e.g. "p01_rewrite" -> prompts/p01_rewrite.txt).
-prompts:
-  - p01_rewrite_sentence
-  - p02_open_paragraph
+# Which prompt recipes to include. These must exist as .yaml files in
+# PROMPT_RECIPE_FOLDER_PATH (or prompt_recipe_examples/ if that env var is not set).
+recipes:
+  - combined
+  - story_less_aiisms
+  - story_less_extra_bits
 
 # Each "backend" is a (provider, model) pair you want to sweep.
 # Name it whatever's convenient; the label is what shows up in grid.tsv.
@@ -56,6 +57,26 @@ backends:
       top_p: [0.8]
       top_k: [40]
 
+  - label: deepseekV4-flash
+    use_in_grid: true
+    provider: openrouter
+    model: deepseek/deepseek-v4-flash
+    parameters:
+      temperature: [0.7, 1.0, 1.2, 1.4]
+      top_p: [0.8, 0.95]
+      top_k: [null]
+
+
+  - label: deepseekV4-pro
+    use_in_grid: true
+    provider: openrouter
+    model: deepseek/deepseek-v4-pro
+    parameters:
+      temperature: [0.7, 1.0, 1.2, 1.4]
+      top_p: [0.8, 0.95]
+      top_k: [null]
+
+
   - label: openrouter-m2.7
     use_in_grid: true
     provider: openrouter
@@ -65,7 +86,16 @@ backends:
       top_p: [0.8, 0.95]
       top_k: [null]
 
-  - label: openrouter-glm-5.1
+  - label: openrouter-glm-5.1-less-options
+    use_in_grid: false
+    provider: openrouter
+    model: z-ai/glm-5.1
+    parameters:
+      temperature: [0.7, 1.0]
+      top_p: [0.8, 0.95]
+      top_k: [null]
+
+  - label: openrouter-glm-5.1-more-options
     use_in_grid: true
     provider: openrouter
     model: z-ai/glm-5.1
@@ -92,21 +122,39 @@ backends:
       top_p: [0.8, 0.95]
       top_k: [null]
 
-  - label: local-qwen3-30b
-    use_in_grid: false
+  - label: local-qwen3.6:35b-more-options
+    use_in_grid: true
     provider: local
-    model: qwen3:30b
+    model: qwen3.6:35b
     parameters:
       temperature: [0.7, 1.0, 1.2, 1.4, 1.6]
       top_p: [0.8, 0.95]
       top_k: [null]
 
-  - label: local-gpt-oss
-    use_in_grid: false
+  - label: local-gpt-oss-more-options
+    use_in_grid: true
     provider: local
     model: gpt-oss:20b
     parameters:
       temperature: [0.7, 1.0, 1.2, 1.4, 1.6]
+      top_p: [0.8, 0.95]
+      top_k: [null]
+
+  - label: local-qqwen3.6:35b-less-options
+    use_in_grid: false
+    provider: local
+    model: qwen3.6:35b
+    parameters:
+      temperature: [0.7, 1.0]
+      top_p: [0.8, 0.95]
+      top_k: [null]
+
+  - label: local-gpt-oss-less-options
+    use_in_grid: false
+    provider: local
+    model: gpt-oss:20b
+    parameters:
+      temperature: [0.7, 1.0]
       top_p: [0.8, 0.95]
       top_k: [null]
 
@@ -117,7 +165,7 @@ n_samples: 1
 
 # Generation length cap. Set high enough for the longest plausible output;
 # you'll use finish_reason=="length" in generations.tsv to spot truncations.
-max_tokens: 4000
+max_tokens: 10000
 
 # Optional: system prompt applied to every generation. Leave blank to omit.
 system: |

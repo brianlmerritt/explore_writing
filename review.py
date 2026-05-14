@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import csv
 import json
+import os
 import re
 import sys
 import time
@@ -24,7 +25,13 @@ import yaml
 from providers import generate, UnsupportedParam, ProviderConfigError
 
 ROOT = Path(__file__).parent
-RUBRIC = ROOT / "rubric.yaml"
+
+_env_review = os.environ.get("REVIEW_FOLDER_PATH", "")
+REVIEW_FOLDER = ROOT if (not _env_review or _env_review == ".") else Path(_env_review)
+_env_story = os.environ.get("STORY_TO_COMPARE_PATH", "")
+_env_output = os.environ.get("OUTPUT_TEXT_FOLDER_PATH", "")
+OUTPUT_TEXT_DIR = Path(_env_output) if _env_output and _env_output != "." else ROOT / "output_text"
+RUBRIC = REVIEW_FOLDER / "rubric.yaml"
 DATA_DIR = ROOT / "data"
 GEN_PATH = DATA_DIR / "generations_pass1.tsv"
 REV_PATH = DATA_DIR / "reviews.tsv"
@@ -48,7 +55,12 @@ You are not the writer's cheerleader. You score honestly on a 1-5 scale where
 for writing you would genuinely want to keep. Most writing scores 2-3."""
 
 
-def _build_review_prompt(rubric: dict, prompt_text: str, output_text: str) -> str:
+def _build_review_prompt(
+    rubric: dict,
+    prompt_text: str,
+    output_text: str,
+    reference_text: str | None = None,
+) -> str:
     criteria_lines = []
     score_keys_example = []
     for c in rubric["criteria"]:
@@ -58,6 +70,15 @@ def _build_review_prompt(rubric: dict, prompt_text: str, output_text: str) -> st
         
     criteria_block = "\n".join(criteria_lines)
     scores_block_example = ",\n".join(score_keys_example)
+    reference_block = ""
+    if reference_text:
+        reference_block = f"""
+
+REFERENCE WRITING (for compare_to_reference):
+\"\"\"
+{reference_text}
+\"\"\"
+"""
 
     return f"""I will show you a writing prompt and a piece of writing produced in response.
 Score the writing against each rubric criterion on a 1-5 integer scale.
@@ -74,6 +95,7 @@ WRITING TO SCORE:
 \"\"\"
 {output_text}
 \"\"\"
+{reference_block}
 
 Respond with ONLY a JSON object, no other text. Use exactly this format:
 
@@ -99,21 +121,96 @@ def _rubric_hash(rubric: dict) -> str:
 
 
 def _load_prompts(gen_rows: list[dict]) -> dict[str, str]:
-    """Re-read prompt files so the reviewer sees the actual prompt, not a hash."""
-    prompts_dir = ROOT / "prompts"
+    """Read combined prompt files from temp_prompts/ so the reviewer sees the actual prompt."""
+    temp_dir = ROOT / "temp_prompts"
     needed = {row["prompt_id"] for row in gen_rows}
     out = {}
     for pid in needed:
-        path = prompts_dir / f"{pid}.txt"
+        path = temp_dir / f"{pid}.md"
         if not path.exists():
-            sys.exit(f"ERROR: prompt file missing: {path}")
+            sys.exit(f"ERROR: combined prompt file missing: {path}\nRun make_grid.py first to regenerate temp_prompts/.")
         out[pid] = path.read_text(encoding="utf-8")
     return out
+
+
+def _load_reference_story() -> str | None:
+    """Load optional reference writing from STORY_TO_COMPARE_PATH."""
+    if not _env_story or not _env_story.strip():
+        return None
+    raw = _env_story.strip()
+    path = Path(raw)
+    if not path.is_absolute():
+        path = REVIEW_FOLDER / path
+    if not path.exists():
+        sys.exit(f"ERROR: STORY_TO_COMPARE_PATH file not found: {path}")
+    return path.read_text(encoding="utf-8")
 
 
 def _unsanitize_output(text: str) -> str:
     """Reverse explore.py's TSV sanitization (best-effort)."""
     return text.replace("⏎", "\n")
+
+
+def _strip_thinking(text: str) -> str:
+    """Best-effort removal of chain-of-thought style scaffolding."""
+    if not text:
+        return text
+
+    cleaned = text.strip()
+    cleaned = re.sub(r"<think>.*?</think>", "", cleaned, flags=re.IGNORECASE | re.DOTALL)
+    cleaned = re.sub(r"<analysis>.*?</analysis>", "", cleaned, flags=re.IGNORECASE | re.DOTALL)
+
+    marker = re.search(
+        r"(?:^|\n)\s*(?:final answer|final output|answer|output|here(?:'s| is) the (?:story|output))\s*:\s*",
+        cleaned,
+        flags=re.IGNORECASE,
+    )
+    if marker:
+        cleaned = cleaned[marker.end():].strip()
+
+    lines = cleaned.splitlines()
+    if not lines:
+        return cleaned
+
+    planning_re = re.compile(
+        r"\b(we need to|let'?s|now we need|must|instruction|count words|draft|scene \d|check that)\b",
+        re.IGNORECASE,
+    )
+    planning_hits = sum(1 for ln in lines if planning_re.search(ln))
+
+    story_start = None
+    for i, ln in enumerate(lines):
+        s = ln.strip()
+        if re.match(r"^Scene\s+\d+\s*[:\-]", s, flags=re.IGNORECASE):
+            story_start = i
+            break
+        if re.match(r"^(Mother|Father|Cleo|Leo|[A-Z][a-z]{1,20})\s*:\s*", s):
+            story_start = i
+            break
+        if s.startswith('"') and len(s) > 1:
+            story_start = i
+            break
+
+    if planning_hits >= 3 and story_start is not None and story_start > 0:
+        cleaned = "\n".join(lines[story_start:]).strip()
+
+    return cleaned.strip()
+
+
+def _load_generation_output(gen_row: dict) -> str:
+    """Load generation text from filename (.md) or fallback to legacy inline TSV text."""
+    ref = (gen_row.get("output_text") or "").strip()
+    if not ref:
+        return ""
+
+    if ref.lower().endswith(".md"):
+        path = Path(ref)
+        if not path.is_absolute():
+            path = OUTPUT_TEXT_DIR / path
+        if path.exists():
+            return _strip_thinking(path.read_text(encoding="utf-8"))
+
+    return _strip_thinking(_unsanitize_output(ref))
 
 
 def _load_generations() -> list[dict]:
@@ -218,6 +315,12 @@ def main() -> None:
     rubric = yaml.safe_load(RUBRIC.read_text(encoding="utf-8"))
     reviewer = rubric["reviewer"]
     rhash = _rubric_hash(rubric)
+    reference_text = _load_reference_story()
+
+    active_criteria = rubric["criteria"]
+    if reference_text is None:
+        active_criteria = [c for c in active_criteria if c["id"] != "compare_to_reference"]
+    score_rubric = {"criteria": active_criteria}
 
     gens = _load_generations()
     # Only review successful generations — no point scoring error rows.
@@ -237,8 +340,15 @@ def main() -> None:
     try:
         for gen in todo:
             prompt_text = prompts[gen["prompt_id"]]
-            output_text = _unsanitize_output(gen["output_text"])
-            review_prompt = _build_review_prompt(rubric, prompt_text, output_text)
+            output_text = _load_generation_output(gen)
+            if not output_text.strip():
+                continue
+            review_prompt = _build_review_prompt(
+                score_rubric,
+                prompt_text,
+                output_text,
+                reference_text=reference_text,
+            )
 
             record = {
                 "run_id": gen["run_id"],
@@ -268,7 +378,9 @@ def main() -> None:
                     )
                     try:
                         parsed = _extract_json(result.text)
-                        scores, notes = _validate_scores(parsed, rubric)
+                        scores, notes = _validate_scores(parsed, score_rubric)
+                        if reference_text is None and any(c["id"] == "compare_to_reference" for c in rubric["criteria"]):
+                            scores["compare_to_reference"] = None
                         record["scores_json"] = json.dumps(scores, sort_keys=True)
                         record["notes"] = notes.replace("\t", " ").replace("\n", " ")
                         record["status"] = "ok"
@@ -276,7 +388,9 @@ def main() -> None:
                     except (ValueError, json.JSONDecodeError) as e:
                         # Attempt a regex fallback
                         try:
-                            scores, notes = _salvage_response(result.text, rubric)
+                            scores, notes = _salvage_response(result.text, score_rubric)
+                            if reference_text is None and any(c["id"] == "compare_to_reference" for c in rubric["criteria"]):
+                                scores["compare_to_reference"] = None
                             record["status"] = "ok"
                             record["scores_json"] = json.dumps(scores, sort_keys=True)
                             record["notes"] = notes.replace("\t", " ").replace("\n", " ")

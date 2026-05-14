@@ -10,6 +10,8 @@ One row of generations.tsv per sample (so n_samples rows per grid row).
 from __future__ import annotations
 
 import csv
+import os
+import re
 import sys
 import time
 from pathlib import Path
@@ -20,10 +22,12 @@ from providers import generate, UnsupportedParam, ProviderConfigError
 
 ROOT = Path(__file__).parent
 SPEC = ROOT / "spec.yaml"
-PROMPTS_DIR = ROOT / "prompts"
+PROMPTS_DIR = ROOT / "temp_prompts"
 DATA_DIR = ROOT / "data"
 GRID_PATH = DATA_DIR / "grid.tsv"
 GEN_PATH = DATA_DIR / "generations.tsv"
+_env_output = os.environ.get("OUTPUT_TEXT_FOLDER_PATH", "")
+OUTPUT_TEXT_DIR = Path(_env_output) if _env_output and _env_output != "." else ROOT / "output_text"
 
 GEN_FIELDS = [
     "run_id",
@@ -47,7 +51,7 @@ GEN_FIELDS = [
     "raw_response_id",
     "status",           # ok | error | unsupported_param | config_error
     "error",            # error message if status != ok, else ""
-    "output_text",      # the generation itself (last column: simpler to read)
+    "output_text",      # filename (.md) containing the generation text
 ]
 
 
@@ -55,7 +59,7 @@ def _load_prompts(grid_rows: list[dict]) -> dict[str, str]:
     needed = {row["prompt_id"] for row in grid_rows}
     prompts = {}
     for pid in needed:
-        path = PROMPTS_DIR / f"{pid}.txt"
+        path = PROMPTS_DIR / f"{pid}.md"
         if not path.exists():
             sys.exit(f"ERROR: prompt file missing: {path}")
         prompts[pid] = path.read_text(encoding="utf-8")
@@ -101,6 +105,63 @@ def _sanitize_for_tsv(text: str) -> str:
     raw_response_id instead.
     """
     return text.replace("\t", "    ").replace("\r\n", "⏎").replace("\n", "⏎")
+
+
+def _strip_thinking(text: str) -> str:
+    """Best-effort removal of chain-of-thought style scaffolding."""
+    if not text:
+        return text
+
+    cleaned = text.strip()
+
+    # Remove explicit reasoning tags when present.
+    cleaned = re.sub(r"<think>.*?</think>", "", cleaned, flags=re.IGNORECASE | re.DOTALL)
+    cleaned = re.sub(r"<analysis>.*?</analysis>", "", cleaned, flags=re.IGNORECASE | re.DOTALL)
+
+    # If the model provides an explicit final-answer marker, keep only the tail.
+    marker = re.search(
+        r"(?:^|\n)\s*(?:final answer|final output|answer|output|here(?:'s| is) the (?:story|output))\s*:\s*",
+        cleaned,
+        flags=re.IGNORECASE,
+    )
+    if marker:
+        cleaned = cleaned[marker.end():].strip()
+
+    lines = cleaned.splitlines()
+    if not lines:
+        return cleaned
+
+    planning_re = re.compile(
+        r"\b(we need to|let'?s|now we need|must|instruction|count words|draft|scene \d|check that)\b",
+        re.IGNORECASE,
+    )
+    planning_hits = sum(1 for ln in lines if planning_re.search(ln))
+
+    story_start = None
+    for i, ln in enumerate(lines):
+        s = ln.strip()
+        if re.match(r"^Scene\s+\d+\s*[:\-]", s, flags=re.IGNORECASE):
+            story_start = i
+            break
+        if re.match(r"^(Mother|Father|Cleo|Leo|[A-Z][a-z]{1,20})\s*:\s*", s):
+            story_start = i
+            break
+        if s.startswith('"') and len(s) > 1:
+            story_start = i
+            break
+
+    if planning_hits >= 3 and story_start is not None and story_start > 0:
+        cleaned = "\n".join(lines[story_start:]).strip()
+
+    return cleaned.strip()
+
+
+def _write_output_file(run_id: str, sample_idx: int, text: str) -> str:
+    OUTPUT_TEXT_DIR.mkdir(parents=True, exist_ok=True)
+    name = f"{run_id}_{sample_idx}.md"
+    path = OUTPUT_TEXT_DIR / name
+    path.write_text(text, encoding="utf-8")
+    return name
 
 
 def _coerce(row: dict) -> dict:
@@ -181,6 +242,8 @@ def main() -> None:
                         max_tokens=row["max_tokens"],
                         system=system,
                     )
+                    cleaned_text = _strip_thinking(result.text)
+                    out_name = _write_output_file(run_id, sample_idx, cleaned_text)
                     record.update(
                         finish_reason=result.finish_reason,
                         input_tokens=result.input_tokens,
@@ -190,7 +253,7 @@ def main() -> None:
                         tokens_per_sec=result.tokens_per_sec,
                         reasoning_tokens=result.reasoning_tokens,
                         raw_response_id=result.raw_response_id,
-                        output_text=_sanitize_for_tsv(result.text),
+                        output_text=out_name,
                     )
 
                 except UnsupportedParam as e:

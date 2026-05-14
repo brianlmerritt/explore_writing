@@ -1,0 +1,5 @@
+title: "Rewrite and Open"
+description: "Sentence rewrite followed by an open paragraph — tests both concision and sustained voice"
+prompts:
+  - p01_rewrite_sentence
+  - p02_open_paragraph
