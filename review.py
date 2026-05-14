@@ -33,7 +33,7 @@ _env_output = os.environ.get("OUTPUT_TEXT_FOLDER_PATH", "")
 OUTPUT_TEXT_DIR = Path(_env_output) if _env_output and _env_output != "." else ROOT / "output_text"
 RUBRIC = REVIEW_FOLDER / "rubric.yaml"
 DATA_DIR = ROOT / "data"
-GEN_PATH = DATA_DIR / "generations_pass1.tsv"
+GEN_PATH = DATA_DIR / "generations.tsv"
 REV_PATH = DATA_DIR / "reviews.tsv"
 
 REV_FIELDS = [
