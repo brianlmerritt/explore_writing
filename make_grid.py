@@ -24,15 +24,16 @@ load_dotenv()
 
 ROOT = Path(__file__).parent
 SPEC = ROOT / "spec.yaml"
-DATA_DIR = ROOT / "data"
+
+_remote = os.environ.get("REMOTE_FOLDER_PATH", "")
+REMOTE = Path(_remote) if _remote else None
+
+DATA_DIR             = (REMOTE / "data")            if REMOTE else ROOT / "data"
+TEMP_PROMPTS_DIR     = (REMOTE / "temp_prompts")    if REMOTE else ROOT / "temp_prompts"
+PROMPT_FOLDER        = (REMOTE / "prompts")         if REMOTE else ROOT / "prompt_examples"
+PROMPT_RECIPE_FOLDER = (REMOTE / "prompt_recipes")  if REMOTE else ROOT / "prompt_recipe_examples"
+
 GRID_PATH = DATA_DIR / "grid.tsv"
-TEMP_PROMPTS_DIR = ROOT / "temp_prompts"
-
-_env_prompt = os.environ.get("PROMPT_FOLDER_PATH", "")
-PROMPT_FOLDER = Path(_env_prompt) if _env_prompt and _env_prompt != "." else ROOT / "prompt_examples"
-
-_env_recipe = os.environ.get("PROMPT_RECIPE_FOLDER_PATH", "")
-PROMPT_RECIPE_FOLDER = Path(_env_recipe) if _env_recipe and _env_recipe != "." else ROOT / "prompt_recipe_examples"
 
 GRID_FIELDS = [
     "run_id",

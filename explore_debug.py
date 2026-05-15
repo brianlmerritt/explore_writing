@@ -28,9 +28,15 @@ if hasattr(sys.stderr, "reconfigure"):
 
 ROOT = Path(__file__).parent
 SPEC = ROOT / "spec.yaml"
-GRID_PATH = ROOT / "data" / "grid.tsv"
-GEN_PATH = ROOT / "data" / "generations.tsv"
-PROMPTS_DIR = ROOT / "temp_prompts"
+
+_remote = os.environ.get("REMOTE_FOLDER_PATH", "")
+_REMOTE = Path(_remote) if _remote else None
+
+DATA_DIR    = (_REMOTE / "data")         if _REMOTE else ROOT / "data"
+PROMPTS_DIR = (_REMOTE / "temp_prompts") if _REMOTE else ROOT / "temp_prompts"
+
+GRID_PATH = DATA_DIR / "grid.tsv"
+GEN_PATH  = DATA_DIR / "generations.tsv"
 
 
 def _coerce(row: dict) -> dict:

@@ -22,12 +22,16 @@ from providers import generate, UnsupportedParam, ProviderConfigError, _thinking
 
 ROOT = Path(__file__).parent
 SPEC = ROOT / "spec.yaml"
-PROMPTS_DIR = ROOT / "temp_prompts"
-DATA_DIR = ROOT / "data"
+
+_remote = os.environ.get("REMOTE_FOLDER_PATH", "")
+REMOTE = Path(_remote) if _remote else None
+
+DATA_DIR        = (REMOTE / "data")         if REMOTE else ROOT / "data"
+PROMPTS_DIR     = (REMOTE / "temp_prompts") if REMOTE else ROOT / "temp_prompts"
+OUTPUT_TEXT_DIR = (REMOTE / "output_text")  if REMOTE else ROOT / "output_text"
+
 GRID_PATH = DATA_DIR / "grid.tsv"
-GEN_PATH = DATA_DIR / "generations.tsv"
-_env_output = os.environ.get("OUTPUT_TEXT_FOLDER_PATH", "")
-OUTPUT_TEXT_DIR = Path(_env_output) if _env_output and _env_output != "." else ROOT / "output_text"
+GEN_PATH  = DATA_DIR / "generations.tsv"
 
 GEN_FIELDS = [
     "run_id",

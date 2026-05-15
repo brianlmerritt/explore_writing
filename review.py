@@ -25,14 +25,17 @@ import yaml
 from providers import generate, UnsupportedParam, ProviderConfigError
 
 ROOT = Path(__file__).parent
+SPEC = ROOT / "spec.yaml"
 
-_env_review = os.environ.get("REVIEW_FOLDER_PATH", "")
-REVIEW_FOLDER = ROOT if (not _env_review or _env_review == ".") else Path(_env_review)
-_env_story = os.environ.get("STORY_TO_COMPARE_PATH", "")
-_env_output = os.environ.get("OUTPUT_TEXT_FOLDER_PATH", "")
-OUTPUT_TEXT_DIR = Path(_env_output) if _env_output and _env_output != "." else ROOT / "output_text"
-RUBRIC = REVIEW_FOLDER / "rubric.yaml"
-DATA_DIR = ROOT / "data"
+_remote = os.environ.get("REMOTE_FOLDER_PATH", "")
+REMOTE = Path(_remote) if _remote else None
+
+DATA_DIR         = (REMOTE / "data")         if REMOTE else ROOT / "data"
+REVIEW_FOLDER    = (REMOTE / "rubric")       if REMOTE else ROOT
+TEMP_PROMPTS_DIR = (REMOTE / "temp_prompts") if REMOTE else ROOT / "temp_prompts"
+OUTPUT_TEXT_DIR  = (REMOTE / "output_text")  if REMOTE else ROOT / "output_text"
+
+RUBRIC   = REVIEW_FOLDER / "rubric.yaml"
 GEN_PATH = DATA_DIR / "generations.tsv"
 REV_PATH = DATA_DIR / "reviews.tsv"
 
@@ -122,27 +125,25 @@ def _rubric_hash(rubric: dict) -> str:
 
 def _load_prompts(gen_rows: list[dict]) -> dict[str, str]:
     """Read combined prompt files from temp_prompts/ so the reviewer sees the actual prompt."""
-    temp_dir = ROOT / "temp_prompts"
     needed = {row["prompt_id"] for row in gen_rows}
     out = {}
     for pid in needed:
-        path = temp_dir / f"{pid}.md"
+        path = TEMP_PROMPTS_DIR / f"{pid}.md"
         if not path.exists():
             sys.exit(f"ERROR: combined prompt file missing: {path}\nRun make_grid.py first to regenerate temp_prompts/.")
         out[pid] = path.read_text(encoding="utf-8")
     return out
 
 
-def _load_reference_story() -> str | None:
-    """Load optional reference writing from STORY_TO_COMPARE_PATH."""
-    if not _env_story or not _env_story.strip():
+def _load_reference_story(spec: dict) -> str | None:
+    """Load optional reference writing from story_to_compare_path in spec.yaml."""
+    story_path = (spec.get("story_to_compare_path") or "").strip()
+    if not story_path:
         return None
-    raw = _env_story.strip()
-    path = Path(raw)
-    if not path.is_absolute():
-        path = REVIEW_FOLDER / path
+    base = REMOTE if REMOTE else ROOT
+    path = base / story_path
     if not path.exists():
-        sys.exit(f"ERROR: STORY_TO_COMPARE_PATH file not found: {path}")
+        sys.exit(f"ERROR: story_to_compare_path file not found: {path}")
     return path.read_text(encoding="utf-8")
 
 
@@ -313,9 +314,10 @@ def _salvage_response(text: str, rubric: dict) -> tuple[dict, str]:
 
 def main() -> None:
     rubric = yaml.safe_load(RUBRIC.read_text(encoding="utf-8"))
+    spec = yaml.safe_load(SPEC.read_text(encoding="utf-8"))
     reviewer = rubric["reviewer"]
     rhash = _rubric_hash(rubric)
-    reference_text = _load_reference_story()
+    reference_text = _load_reference_story(spec)
 
     active_criteria = rubric["criteria"]
     if reference_text is None:
