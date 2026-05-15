@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import argparse
 import csv
-import os
 import sys
 import time
 from pathlib import Path
@@ -29,7 +28,8 @@ if hasattr(sys.stderr, "reconfigure"):
 ROOT = Path(__file__).parent
 SPEC = ROOT / "spec.yaml"
 
-_remote = os.environ.get("REMOTE_FOLDER_PATH", "")
+_spec_raw = yaml.safe_load(SPEC.read_text(encoding="utf-8"))
+_remote = str(_spec_raw.get("REMOTE_FOLDER_PATH") or "").strip()
 _REMOTE = Path(_remote) if _remote else None
 
 DATA_DIR    = (_REMOTE / "data")         if _REMOTE else ROOT / "data"

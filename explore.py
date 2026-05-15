@@ -10,7 +10,6 @@ One row of generations.tsv per sample (so n_samples rows per grid row).
 from __future__ import annotations
 
 import csv
-import os
 import re
 import sys
 import time
@@ -23,7 +22,8 @@ from providers import generate, UnsupportedParam, ProviderConfigError, _thinking
 ROOT = Path(__file__).parent
 SPEC = ROOT / "spec.yaml"
 
-_remote = os.environ.get("REMOTE_FOLDER_PATH", "")
+_spec_raw = yaml.safe_load(SPEC.read_text(encoding="utf-8"))
+_remote = str(_spec_raw.get("REMOTE_FOLDER_PATH") or "").strip()
 REMOTE = Path(_remote) if _remote else None
 
 DATA_DIR        = (REMOTE / "data")         if REMOTE else ROOT / "data"

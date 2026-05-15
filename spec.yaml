@@ -19,11 +19,14 @@ n_samples: 1
 # you'll use finish_reason=="length" in generations.tsv to spot truncations.
 max_tokens: 40000
 
+# Remote folder path. When set, all data/output/prompt subfolders live under this root.
+# Leave blank to use local repo defaults (data/, temp_prompts/, output_text/, etc.).
+REMOTE_FOLDER_PATH: "C:\\Users\\brian\\OneDrive\\Documents\\Writing\\Creative Writing\\Duo"
 
 # Optional: path to a reference story for the compare_to_reference rubric criterion.
-# Relative to REMOTE_FOLDER_PATH (or the project root when REMOTE_FOLDER_PATH is not set).
-# Leave blank or omit to skip the compare_to_reference criterion.
-story_to_compare_path: C:\Users\brian\OneDrive\Documents\Writing\Creative Writing\Duo\duo.md
+# Can be an absolute path or relative to REMOTE_FOLDER_PATH (or the project root when
+# REMOTE_FOLDER_PATH is not set). Leave blank or omit to skip the criterion.
+story_to_compare_path: "C:\\Users\\brian\\OneDrive\\Documents\\Writing\\Creative Writing\\Duo\\duo.md"
 
 # Thinking/reasoning token budget. Set null to disable, or a positive integer.
 # Per-provider values override the default. Omit a provider key to use the default.
