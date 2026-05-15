@@ -18,7 +18,7 @@ from pathlib import Path
 
 import yaml
 
-from providers import generate, UnsupportedParam, ProviderConfigError
+from providers import generate, UnsupportedParam, ProviderConfigError, _thinking_budget_tokens
 
 ROOT = Path(__file__).parent
 SPEC = ROOT / "spec.yaml"
@@ -229,6 +229,8 @@ def main() -> None:
                         top_k=row["top_k"],
                         max_tokens=row["max_tokens"],
                         system=system,
+                        thinking_budget=_thinking_budget_tokens(row["provider"], spec.get("thinking_budget_tokens")),
+                        openai_reasoning_effort=spec.get("openai_reasoning_effort", "low"),
                     )
                     cleaned_text = _strip_thinking(result.text)
                     out_name = _write_output_file(run_id, sample_idx, cleaned_text)

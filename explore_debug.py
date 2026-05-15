@@ -58,9 +58,8 @@ def _load_prompt(prompt_id: str) -> str:
     return path.read_text(encoding="utf-8")
 
 
-def _load_system_prompt() -> str | None:
-    spec = yaml.safe_load(SPEC.read_text(encoding="utf-8"))
-    return spec.get("system") or None
+def _load_spec() -> dict:
+    return yaml.safe_load(SPEC.read_text(encoding="utf-8"))
 
 
 def _load_generation_row(run_id: str, sample_idx: int) -> dict | None:
@@ -104,7 +103,7 @@ def _print_text_preview(label: str, text: str) -> None:
     print(text)
 
 
-def _stream_anthropic(row: dict, prompt: str, system: str | None) -> None:
+def _stream_anthropic(row: dict, prompt: str, system: str | None, thinking_budget: int | None) -> None:
     client = _anthropic_client()
     kwargs = {
         "model": row["model"],
@@ -122,7 +121,7 @@ def _stream_anthropic(row: dict, prompt: str, system: str | None) -> None:
 
     print("request:")
     print(f"  provider=anthropic model={row['model']!r}")
-    print(f"  thinking_budget={_thinking_budget_tokens('anthropic')!r}")
+    print(f"  thinking_budget={thinking_budget!r}")
     print(f"  temperature={kwargs.get('temperature')!r} top_p={kwargs.get('top_p')!r} top_k={kwargs.get('top_k')!r}")
     print(f"  max_tokens={row['max_tokens']}")
 
@@ -159,9 +158,8 @@ def _stream_anthropic(row: dict, prompt: str, system: str | None) -> None:
     _print_text_preview("assembled text:", assembled)
 
 
-def _stream_openai_compat(row: dict, prompt: str, system: str | None) -> None:
+def _stream_openai_compat(row: dict, prompt: str, system: str | None, thinking_budget: int | None, openai_reasoning_effort: str = "low") -> None:
     client = _openai_compat_client(row["provider"])
-    thinking_budget = _thinking_budget_tokens(row["provider"])
 
     messages = []
     if system is not None:
@@ -188,7 +186,7 @@ def _stream_openai_compat(row: dict, prompt: str, system: str | None) -> None:
         if row["provider"] in {"openrouter", "local", "gemini"}:
             extra_body["reasoning"] = {"max_tokens": thinking_budget}
         elif row["provider"] == "openai":
-            kwargs["reasoning_effort"] = os.environ.get("OPENAI_REASONING_EFFORT", "low")
+            kwargs["reasoning_effort"] = openai_reasoning_effort
 
     if extra_body:
         kwargs["extra_body"] = extra_body
@@ -284,7 +282,10 @@ def main() -> None:
 
     row = _find_grid_row(args.run_id)
     generation = _load_generation_row(args.run_id, args.sample_idx)
-    system = _load_system_prompt()
+    spec = _load_spec()
+    system = spec.get("system") or None
+    thinking_budget = _thinking_budget_tokens(row["provider"].lower(), spec.get("thinking_budget_tokens"))
+    openai_reasoning_effort = spec.get("openai_reasoning_effort", "low")
     prompt = _load_prompt(row["prompt_id"])
 
     _print_row(row)
@@ -305,9 +306,9 @@ def main() -> None:
 
     try:
         if provider == "anthropic":
-            _stream_anthropic(row, prompt, system)
+            _stream_anthropic(row, prompt, system, thinking_budget)
         else:
-            _stream_openai_compat(row, prompt, system)
+            _stream_openai_compat(row, prompt, system, thinking_budget, openai_reasoning_effort)
     except UnsupportedParam as exc:
         raise SystemExit(f"ERROR: unsupported parameter: {exc}") from exc
     except ProviderConfigError as exc:

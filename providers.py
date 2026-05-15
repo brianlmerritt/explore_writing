@@ -82,33 +82,17 @@ CAPABILITIES = {
 _clients: dict = {}
 
 
-def _env_int(name: str) -> Optional[int]:
-    raw = os.environ.get(name)
-    if raw is None or raw.strip() == "":
+def _thinking_budget_tokens(provider: str, budget_config=None) -> Optional[int]:
+    """Resolve thinking token budget for a provider from spec.yaml config."""
+    if budget_config is None:
         return None
-    try:
-        val = int(raw)
-    except ValueError:
-        raise ProviderConfigError(f"{name} must be an integer, got: {raw!r}")
-    if val <= 0:
-        raise ProviderConfigError(f"{name} must be > 0, got: {val}")
-    return val
-
-
-def _thinking_budget_tokens(provider: str) -> Optional[int]:
-    """Return provider-specific or global reasoning token budget if configured."""
-    per_provider = {
-        "openrouter": "OPENROUTER_THINKING_BUDGET_TOKENS",
-        "local": "LOCAL_THINKING_BUDGET_TOKENS",
-        "openai": "OPENAI_THINKING_BUDGET_TOKENS",
-        "gemini": "GEMINI_THINKING_BUDGET_TOKENS",
-    }
-    specific = per_provider.get(provider)
-    if specific:
-        val = _env_int(specific)
-        if val is not None:
-            return val
-    return _env_int("THINKING_BUDGET_TOKENS")
+    if isinstance(budget_config, dict):
+        val = budget_config.get(provider)
+        if val is None:
+            val = budget_config.get("default")
+    else:
+        val = budget_config
+    return int(val) if val is not None else None
 
 
 def _anthropic_client():
@@ -182,6 +166,8 @@ def generate(
     max_tokens: int,
     seed: Optional[int] = None,
     system: Optional[str] = None,
+    thinking_budget: Optional[int] = None,
+    openai_reasoning_effort: str = "low",
 ) -> GenerationResult:
     """
     Run one generation. Raises UnsupportedParam for parameters the provider
@@ -205,7 +191,8 @@ def generate(
     else:
         # openai, gemini, openrouter, local — all share the OpenAI SDK shape
         result = _generate_openai_compat(
-            provider, model, prompt, T, top_p, top_k, max_tokens, seed, system
+            provider, model, prompt, T, top_p, top_k, max_tokens, seed, system,
+            thinking_budget, openai_reasoning_effort
         )
 
     result.latency_ms = int((time.perf_counter() - t0) * 1000)
@@ -290,9 +277,10 @@ def _generate_openai_compat(
     max_tokens: int,
     seed: Optional[int],
     system: Optional[str],
+    thinking_budget: Optional[int] = None,
+    openai_reasoning_effort: str = "low",
 ) -> GenerationResult:
     client = _openai_compat_client(provider)
-    thinking_budget = _thinking_budget_tokens(provider)
 
     messages = []
     if system is not None:
@@ -324,7 +312,7 @@ def _generate_openai_compat(
             extra_body["reasoning"] = {"max_tokens": thinking_budget}
         elif provider == "openai":
             # OpenAI exposes reasoning effort controls rather than strict token caps.
-            kwargs["reasoning_effort"] = os.environ.get("OPENAI_REASONING_EFFORT", "low")
+            kwargs["reasoning_effort"] = openai_reasoning_effort
         elif provider == "gemini":
             extra_body["reasoning"] = {"max_tokens": thinking_budget}
 

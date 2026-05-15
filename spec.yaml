@@ -19,6 +19,19 @@ n_samples: 1
 # you'll use finish_reason=="length" in generations.tsv to spot truncations.
 max_tokens: 40000
 
+# Thinking/reasoning token budget. Set null to disable, or a positive integer.
+# Per-provider values override the default. Omit a provider key to use the default.
+thinking_budget_tokens:
+  default: 4000
+  openrouter: 4000
+  local: 4000
+  openai: 4000
+  gemini: 4000
+
+# OpenAI reasoning effort: low, medium, or high.
+# Used when thinking_budget_tokens is set for the openai provider.
+openai_reasoning_effort: medium
+
 
 # Each "backend" is a (provider, model) pair you want to sweep.
 # Name it whatever's convenient; the label is what shows up in grid.tsv.
