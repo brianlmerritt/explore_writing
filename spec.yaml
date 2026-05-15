@@ -10,6 +10,16 @@ recipes:
   - story_less_aiisms
   - story_less_extra_bits
 
+# How many samples to draw per (prompt × backend × param) cell.
+# The paper suggests even N=1 works, but for exploration you want enough
+# samples to see the variance within a cell.
+n_samples: 1
+
+# Generation length cap. Set high enough for the longest plausible output;
+# you'll use finish_reason=="length" in generations.tsv to spot truncations.
+max_tokens: 40000
+
+
 # Each "backend" is a (provider, model) pair you want to sweep.
 # Name it whatever's convenient; the label is what shows up in grid.tsv.
 backends:
@@ -158,14 +168,6 @@ backends:
       top_p: [0.8, 0.95]
       top_k: [null]
 
-# How many samples to draw per (prompt × backend × param) cell.
-# The paper suggests even N=1 works, but for exploration you want enough
-# samples to see the variance within a cell.
-n_samples: 1
-
-# Generation length cap. Set high enough for the longest plausible output;
-# you'll use finish_reason=="length" in generations.tsv to spot truncations.
-max_tokens: 40000
 
 # Optional: system prompt applied to every generation. Leave blank to omit.
 system: |
