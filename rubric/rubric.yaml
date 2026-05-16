@@ -4,7 +4,7 @@
 # Edit this file to reflect what "good" means for your specific use case.
 # Fewer, sharper criteria produce more useful scores than many vague ones.
 
-# Reviewer model (same adapter as write.py; can be a different provider).
+# Reviewer model (same adapter as explore.py; can be a different provider).
 reviewer:
   provider: anthropic
   model: claude-sonnet-4-6
@@ -62,12 +62,23 @@ criteria:
       scope, length and form. No unnecessary preamble or meta-commentary, no
       hedging about the task.
 
+  - id: ai_isms
+    description: >
+      Detects whether the piece sounds generated rather than written. Penalize
+      prose that is too evenly polished, over-explains motives or themes,
+      defaults to generic emotional shorthand, or makes every image and sentence
+      serve an obvious symbolic purpose. Watch for stock LLM cadences:
+      contrastive pairs, balanced clauses, recursive clarification, throat-clearing
+      transitions, and endings that summarize the lesson. Reward language that
+      contains friction: specific choices, omissions, tonal risk, uneven human
+      pressure, and details that feel observed rather than selected from a menu.
+
   - id: overall
     description: >
       Holistic judgement: would you keep this, edit it, or throw it away?
-      1=throw away, 3=edit heavily, 5=keep as-is.
+      1=throw away, 2=edit heavily, 3=moderate edits needed, 4=minor tweaks only, 5=keep as-is.
 
   - id: compare_to_reference
     description: >
       Compares the piece to a reference work or example. 
-      1=much worse, 3=about the same, 5=much better.
+      1=much worse, 2=not as good, 3=fully as good, 4=noticably better, 5=much better.

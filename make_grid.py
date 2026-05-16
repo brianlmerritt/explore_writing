@@ -133,10 +133,10 @@ def main() -> None:
 
     total_generations = len(rows) * n_samples
     print(f"Wrote {GRID_PATH} with {len(rows)} rows.")
-        print(f"write.py will produce {total_generations} generations "
+    print(f"write.py will produce {total_generations} generations "
           f"({n_samples} samples × {len(rows)} cells).")
     print()
-        print("Inspect grid.tsv before running write.py.")
+    print("Inspect grid.tsv before running write.py.")
     print("Sanity-check the total generation count against your API budget.")
 
 
