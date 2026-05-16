@@ -1,0 +1,10 @@
+title: "Duo"
+description: "Write the short story Duo"
+prompts:
+  - prompt
+  - writing_style
+  - characters
+  - locations
+  - scene_beats
+  - do_this_but_dont_do_this
+  - sanity_check
