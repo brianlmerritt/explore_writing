@@ -2,9 +2,9 @@
 Read spec.yaml, expand the parameter grid, write data/grid.tsv.
 
 Each row of grid.tsv represents one (prompt × backend × parameter-set) cell.
-explore.py will draw `n_samples` generations per row.
+write.py will draw `n_samples` generations per row.
 
-Run this before explore.py. Inspect grid.tsv. Count rows. Estimate cost.
+Run this before write.py. Inspect grid.tsv. Count rows. Estimate cost.
 Only then proceed.
 """
 
@@ -30,8 +30,8 @@ REMOTE = Path(_remote) if _remote else None
 
 DATA_DIR             = (REMOTE / "data")            if REMOTE else ROOT / "data"
 TEMP_PROMPTS_DIR     = (REMOTE / "temp_prompts")    if REMOTE else ROOT / "temp_prompts"
-PROMPT_FOLDER        = (REMOTE / "prompts")         if REMOTE else ROOT / "prompt_examples"
-PROMPT_RECIPE_FOLDER = (REMOTE / "prompt_recipes")  if REMOTE else ROOT / "prompt_recipe_examples"
+PROMPT_FOLDER        = (REMOTE / "prompts")         if REMOTE else ROOT / "prompts"
+PROMPT_RECIPE_FOLDER = (REMOTE / "prompt_recipes")  if REMOTE else ROOT / "prompt_recipes"
 
 GRID_PATH = DATA_DIR / "grid.tsv"
 
@@ -133,10 +133,10 @@ def main() -> None:
 
     total_generations = len(rows) * n_samples
     print(f"Wrote {GRID_PATH} with {len(rows)} rows.")
-    print(f"explore.py will produce {total_generations} generations "
+        print(f"write.py will produce {total_generations} generations "
           f"({n_samples} samples × {len(rows)} cells).")
     print()
-    print("Inspect grid.tsv before running explore.py.")
+        print("Inspect grid.tsv before running write.py.")
     print("Sanity-check the total generation count against your API budget.")
 
 

@@ -4,7 +4,7 @@
 # Edit this file to reflect what "good" means for your specific use case.
 # Fewer, sharper criteria produce more useful scores than many vague ones.
 
-# Reviewer model (same adapter as explore.py; can be a different provider).
+# Reviewer model (same adapter as write.py; can be a different provider).
 reviewer:
   provider: anthropic
   model: claude-sonnet-4-6

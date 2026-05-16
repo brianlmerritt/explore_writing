@@ -4,7 +4,7 @@
 # Each "cell" produces n_samples generations.
 
 # Which prompt recipes to include. These must exist as .yaml files in
-# PROMPT_RECIPE_FOLDER_PATH (or prompt_recipe_examples/ if that env var is not set).
+# prompt_recipes/ (or REMOTE_FOLDER_PATH/prompt_recipes when REMOTE_FOLDER_PATH is set).
 recipes:
   - combined
 #  - story_less_aiisms

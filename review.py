@@ -2,12 +2,12 @@
 Read data/generations.tsv, score each generation against rubric.yaml,
 append to data/reviews.tsv.
 
-Separate from explore.py so you can:
+Separate from write.py so you can:
   - re-score with a different rubric without regenerating outputs
   - score with a different reviewer model
   - iterate on review criteria cheaply
 
-Resumable the same way explore.py is: rows already present are skipped.
+Resumable the same way write.py is: rows already present are skipped.
 """
 
 from __future__ import annotations
@@ -31,7 +31,7 @@ _remote = str(_spec_raw.get("REMOTE_FOLDER_PATH") or "").strip()
 REMOTE = Path(_remote) if _remote else None
 
 DATA_DIR         = (REMOTE / "data")         if REMOTE else ROOT / "data"
-REVIEW_FOLDER    = (REMOTE / "rubric")       if REMOTE else ROOT
+REVIEW_FOLDER    = (REMOTE / "rubric")       if REMOTE else ROOT / "rubric"
 TEMP_PROMPTS_DIR = (REMOTE / "temp_prompts") if REMOTE else ROOT / "temp_prompts"
 OUTPUT_TEXT_DIR  = (REMOTE / "output_text")  if REMOTE else ROOT / "output_text"
 
@@ -148,7 +148,7 @@ def _load_reference_story(spec: dict) -> str | None:
 
 
 def _unsanitize_output(text: str) -> str:
-    """Reverse explore.py's TSV sanitization (best-effort)."""
+    """Reverse write.py's TSV sanitization (best-effort)."""
     return text.replace("⏎", "\n")
 
 
@@ -216,7 +216,7 @@ def _load_generation_output(gen_row: dict) -> str:
 
 def _load_generations() -> list[dict]:
     if not GEN_PATH.exists():
-        sys.exit(f"ERROR: {GEN_PATH} not found. Run explore.py first.")
+        sys.exit(f"ERROR: {GEN_PATH} not found. Run write.py first.")
     with GEN_PATH.open(encoding="utf-8", newline="") as f:
         return list(csv.DictReader(f, delimiter="\t"))
 

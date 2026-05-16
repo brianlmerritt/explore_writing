@@ -1,0 +1,76 @@
+# Example experiment spec. Copy to spec.yaml and customize.
+# make_grid.py expands this into one row of grid.tsv per
+# (prompt x params x backend) cell.
+
+# Recipe basenames from prompt_recipes/ (no .yaml suffix).
+recipes:
+  - combined
+
+# Number of samples per grid cell.
+n_samples: 1
+
+# Generation length cap.
+max_tokens: 40000
+
+# Optional remote root. Leave blank to use local defaults.
+# When set, scripts use <REMOTE_FOLDER_PATH>/{data,prompts,prompt_recipes,rubric,temp_prompts,output_text}
+REMOTE_FOLDER_PATH: ""
+
+# Optional reference story path for compare_to_reference.
+# Absolute, or relative to REMOTE_FOLDER_PATH (or project root if blank).
+story_to_compare_path:
+
+# Optional thinking/reasoning token budget.
+thinking_budget_tokens:
+  default: 4000
+  openrouter: 4000
+  local: 4000
+  openai: 4000
+  gemini: 4000
+
+# OpenAI reasoning effort: low, medium, or high.
+openai_reasoning_effort: medium
+
+# Minimal backend examples: one each for openai, gemini, openrouter, and local.
+backends:
+  - label: openai-example
+    use_in_grid: true
+    provider: openai
+    model: put_model_name_here
+    parameters:
+      temperature: [1]
+      top_p: [1.0]
+
+  - label: gemini-example
+    use_in_grid: true
+    provider: gemini
+    model: put_model_name_here
+    parameters:
+      temperature: [0.7]
+      top_p: [0.8]
+      top_k: [40]
+
+  - label: openrouter-example
+    use_in_grid: true
+    provider: openrouter
+    model: put_model_name_here
+    parameters:
+      temperature: [0.7]
+      top_p: [0.8]
+      top_k: [null]
+
+  - label: local-example
+    use_in_grid: true
+    provider: local
+    model: put_model_name_here
+    parameters:
+      temperature: [0.7]
+      top_p: [0.8]
+      top_k: [null]
+
+# Optional system prompt applied to every generation.
+system: |
+  You are helping with creative writing. Produce only the requested prose.
+  Do not include headings such as "analysis", "thinking", "plan", "draft", "notes", or "reasoning".
+  Do not explain your approach.
+  Begin directly with the first sentence of the final story without any thoughts, checking or rewrites.

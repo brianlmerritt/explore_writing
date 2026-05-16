@@ -9,6 +9,7 @@ One row of generations.tsv per sample (so n_samples rows per grid row).
 
 from __future__ import annotations
 
+import argparse
 import csv
 import re
 import sys
@@ -53,7 +54,7 @@ GEN_FIELDS = [
     "tokens_per_sec",
     "reasoning_tokens",
     "raw_response_id",
-    "status",           # ok | error | unsupported_param | config_error
+    "status",           # ok | skipped | error | unsupported_param | config_error
     "error",            # error message if status != ok, else ""
     "output_text",      # filename (.md) containing the generation text
 ]
@@ -168,7 +169,23 @@ def _coerce(row: dict) -> dict:
     }
 
 
-def main() -> None:
+def _parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Generate writing samples from grid.tsv")
+    parser.add_argument(
+        "--skip-writing",
+        action="store_true",
+        help="Prepare grid/temp_prompts and write skipped rows without calling providers or writing output_text files.",
+    )
+    return parser.parse_args()
+
+
+def main(skip_writing: bool = False) -> None:
+    if skip_writing:
+        # Rebuild grid and temp prompts so this mode can be used as a prep-only dry run.
+        import make_grid
+
+        make_grid.main()
+
     spec = yaml.safe_load(SPEC.read_text(encoding="utf-8"))
     system = spec.get("system") or None
 
@@ -224,31 +241,35 @@ def main() -> None:
                 }
 
                 try:
-                    result = generate(
-                        provider=row["provider"],
-                        model=row["model"],
-                        prompt=prompt,
-                        T=row["temperature"],
-                        top_p=row["top_p"],
-                        top_k=row["top_k"],
-                        max_tokens=row["max_tokens"],
-                        system=system,
-                        thinking_budget=_thinking_budget_tokens(row["provider"], spec.get("thinking_budget_tokens")),
-                        openai_reasoning_effort=spec.get("openai_reasoning_effort", "low"),
-                    )
-                    cleaned_text = _strip_thinking(result.text)
-                    out_name = _write_output_file(run_id, sample_idx, cleaned_text)
-                    record.update(
-                        finish_reason=result.finish_reason,
-                        input_tokens=result.input_tokens,
-                        output_tokens=result.output_tokens,
-                        latency_ms=result.latency_ms,
-                        ttft_ms=result.ttft_ms,
-                        tokens_per_sec=result.tokens_per_sec,
-                        reasoning_tokens=result.reasoning_tokens,
-                        raw_response_id=result.raw_response_id,
-                        output_text=out_name,
-                    )
+                    if skip_writing:
+                        record["status"] = "skipped"
+                        record["error"] = "--skip-writing enabled"
+                    else:
+                        result = generate(
+                            provider=row["provider"],
+                            model=row["model"],
+                            prompt=prompt,
+                            T=row["temperature"],
+                            top_p=row["top_p"],
+                            top_k=row["top_k"],
+                            max_tokens=row["max_tokens"],
+                            system=system,
+                            thinking_budget=_thinking_budget_tokens(row["provider"], spec.get("thinking_budget_tokens")),
+                            openai_reasoning_effort=spec.get("openai_reasoning_effort", "low"),
+                        )
+                        cleaned_text = _strip_thinking(result.text)
+                        out_name = _write_output_file(run_id, sample_idx, cleaned_text)
+                        record.update(
+                            finish_reason=result.finish_reason,
+                            input_tokens=result.input_tokens,
+                            output_tokens=result.output_tokens,
+                            latency_ms=result.latency_ms,
+                            ttft_ms=result.ttft_ms,
+                            tokens_per_sec=result.tokens_per_sec,
+                            reasoning_tokens=result.reasoning_tokens,
+                            raw_response_id=result.raw_response_id,
+                            output_text=out_name,
+                        )
 
                 except UnsupportedParam as e:
                     record["status"] = "unsupported_param"
@@ -261,14 +282,14 @@ def main() -> None:
                     sys.exit(130)  # Standard exit code for SIGINT
                 except Exception as e:
                     # Catch-all: network errors, API errors, rate limits, etc.
-                    # Logged so explore.py keeps moving through the grid.
+                    # Logged so write.py keeps moving through the grid.
                     record["status"] = "error"
                     record["error"] = f"{type(e).__name__}: {e}"
 
                 writer.writerow(record)
                 f.flush()  # persist immediately so Ctrl-C doesn't lose work
 
-                marker = "✓" if record["status"] == "ok" else "✗"
+                marker = "~" if record["status"] == "skipped" else ("✓" if record["status"] == "ok" else "✗")
                 
                 t_str = "null" if row["temperature"] is None else f"{row['temperature']:.2f}"
                 p_str = "null" if row["top_p"] is None else f"{row['top_p']:.2f}"
@@ -287,4 +308,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    args = _parse_args()
+    main(skip_writing=args.skip_writing)
