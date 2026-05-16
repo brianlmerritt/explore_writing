@@ -116,3 +116,11 @@ A row whose provider doesn't support a requested parameter is logged with
 - Create write_chapters.py to iterate over multiple folders to write a whole book
 - write_chapters.py should work with or without reviews (just put one provider in `spec.yaml` to use just your favourite provider)
 - write_chapters.py should be able to carry forward prompts and prompt recipes from one folder to the other, with a pause for you to edit
+
+## License
+
+This project is licensed under the MIT License. See the `LICENSE` file for details.
+
+## Contributing
+
+Contributions are welcome. Feel free to open an issue to discuss ideas, or submit a pull request with improvements.
