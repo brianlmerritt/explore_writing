@@ -93,7 +93,7 @@ def main() -> None:
         out_path = TEMP_PROMPTS_DIR / f"{rid}.md"
         out_path.write_text(combined, encoding="utf-8")
         prompt_hashes[rid] = _short_hash(combined)
-    print(f"Wrote {len(recipe_ids)} combined prompt(s) to {TEMP_PROMPTS_DIR.relative_to(ROOT)}/")
+    print(f"Wrote {len(recipe_ids)} combined prompt(s) to {TEMP_PROMPTS_DIR}/")
 
     DATA_DIR.mkdir(exist_ok=True)
 
@@ -105,9 +105,9 @@ def main() -> None:
                 continue
                 
             params = backend.get("parameters", {})
-            temperatures = params.get("temperature", [None])
-            top_ps = params.get("top_p", [None])
-            top_ks = params.get("top_k", [None])
+            temperatures = params.get("temperature") or [None]
+            top_ps       = params.get("top_p")       or [None]
+            top_ks       = params.get("top_k")       or [None]
 
             for T, top_p, top_k in itertools.product(temperatures, top_ps, top_ks):
                 rows.append({

@@ -7,8 +7,8 @@
 # PROMPT_RECIPE_FOLDER_PATH (or prompt_recipe_examples/ if that env var is not set).
 recipes:
   - combined
-  - story_less_aiisms
-  - story_less_extra_bits
+#  - story_less_aiisms
+#  - story_less_extra_bits
 
 # How many samples to draw per (prompt × backend × param) cell.
 # The paper suggests even N=1 works, but for exploration you want enough
@@ -21,12 +21,12 @@ max_tokens: 40000
 
 # Remote folder path. When set, all data/output/prompt subfolders live under this root.
 # Leave blank to use local repo defaults (data/, temp_prompts/, output_text/, etc.).
-REMOTE_FOLDER_PATH: "C:\\Users\\brian\\OneDrive\\Documents\\Writing\\Creative Writing\\Duo"
+REMOTE_FOLDER_PATH: "C:\\Users\\brian\\writing_prompts\\ward_six\\explore_writing\\chapter1"
 
 # Optional: path to a reference story for the compare_to_reference rubric criterion.
 # Can be an absolute path or relative to REMOTE_FOLDER_PATH (or the project root when
 # REMOTE_FOLDER_PATH is not set). Leave blank or omit to skip the criterion.
-story_to_compare_path: "C:\\Users\\brian\\OneDrive\\Documents\\Writing\\Creative Writing\\Duo\\duo.md"
+story_to_compare_path:
 
 # Thinking/reasoning token budget. Set null to disable, or a positive integer.
 # Per-provider values override the default. Omit a provider key to use the default.
@@ -46,11 +46,11 @@ openai_reasoning_effort: medium
 # Name it whatever's convenient; the label is what shows up in grid.tsv.
 backends:
   - label: claude-opus
-    use_in_grid: false
+    use_in_grid: true
     provider: anthropic
     model: claude-opus-4-7
     parameters:
-      temperature: [0.7, 0.8, 0.9, 1.0]
+      temperature:
       # top_p: [0.8, 0.95]
       # top_k: [null]
 
@@ -59,35 +59,35 @@ backends:
     provider: anthropic
     model: claude-sonnet-4-6
     parameters:
-      temperature: [0.7, 0.8, 0.9, 1.0]
+      temperature: [0.7] #[0.7, 0.8, 0.9, 1.0]
       # top_p: [0.8, 0.95]
       # top_k: [null]
 
   - label: claude-haiku
-    use_in_grid: true
+    use_in_grid: false
     provider: anthropic
     model: claude-haiku-4-5-20251001
     parameters:
-      temperature: [0.7, 0.8, 0.9, 1.0]
+      temperature: [0.7] #[0.7, 0.8, 0.9, 1.0]
       # top_p: [0.8, 0.95]
       # top_k: [null]
 
-  - label: gpt5
-    use_in_grid: false
+  - label: gpt5.5
+    use_in_grid: true
     provider: openai
-    model: gpt-5
+    model: gpt-5.5
     parameters:
-      temperature: [0.7, 1.0]
+      temperature: [1] # Only 1 is allowed for temperature
       top_p: [1.0]
 
   - label: gemini-pro
-    use_in_grid: false
+    use_in_grid: true
     provider: gemini
     model: gemini-2.5-pro
     parameters:
-      temperature: [0.7, 1.0]
+      temperature: [0.7] #[0.7, 1.0]
       top_p: [0.8]
-      top_k: [40]
+      # top_k: [40]
 
   - label: deepseekV4-flash
     use_in_grid: true
@@ -110,7 +110,7 @@ backends:
 
 
   - label: openrouter-m2.7
-    use_in_grid: true
+    use_in_grid: false
     provider: openrouter
     model: minimax/minimax-m2.7
     parameters:
@@ -137,7 +137,7 @@ backends:
       top_k: [null]
 
   - label: openrouter-kimi-k2.6
-    use_in_grid: true
+    use_in_grid: false
     provider: openrouter
     model: moonshotai/kimi-k2.6
     parameters:
@@ -146,7 +146,7 @@ backends:
       top_k: [null]
 
   - label: openrouter-mimo-v2-omni
-    use_in_grid: true
+    use_in_grid: false
     provider: openrouter
     model: xiaomi/mimo-v2-omni
     parameters:
@@ -155,7 +155,7 @@ backends:
       top_k: [null]
 
   - label: local-qwen3.6:35b-more-options
-    use_in_grid: true
+    use_in_grid: false
     provider: local
     model: qwen3.6:35b
     parameters:
@@ -164,7 +164,7 @@ backends:
       top_k: [null]
 
   - label: local-gpt-oss-more-options
-    use_in_grid: true
+    use_in_grid: false
     provider: local
     model: gpt-oss:20b
     parameters:

@@ -290,9 +290,12 @@ def _generate_openai_compat(
     kwargs = dict(
         model=model,
         messages=messages,
-        max_tokens=max_tokens,
         stream=True,
     )
+    if provider == "openai":
+        kwargs["max_completion_tokens"] = max_tokens
+    else:
+        kwargs["max_tokens"] = max_tokens
     # Most newer openai-compat providers support stream_options
     kwargs["stream_options"] = {"include_usage": True}
     
