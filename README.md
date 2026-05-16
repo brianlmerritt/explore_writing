@@ -79,6 +79,10 @@ REMOTE_FOLDER_PATH: "C:\\Users\\brian\\OneDrive\\Documents\\Writing\\Duo"
 8. `python review.py` — scores generations, writes `data/reviews.tsv` with all reviews and then saves the best 3 to `output_text/top_writing.tsv`
 9. Analyse reviews.tsv and top_writing.tsv in pandas / a spreadsheet / whatever.  Use the run_id to link this to the prompt recipe, ai model and temperature in grid.tsv
 
+### Bring your own subscription model
+
+If you already have a subscription model, use `python write.py --skip_writing` to generate the one or multiple prompts to the `temp_prompts` folder and past them into your favourite chat model.  If you are trying multiple prompt combinations, look at grid.tsv, set the temperature if appropriate, paste the prompt, get the output text, and store that in output_text using the same run_id as the filename e.g. r00001.md or r00028.md if you later want to run review.py.
+
 ### Reference story
 
 To use the `compare_to_reference` rubric criterion, set `story_to_compare_path` in
